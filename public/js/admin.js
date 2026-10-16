@@ -196,7 +196,7 @@
           <div class="meta">${meta}</div>
           ${self ? '' : `<div class="controls">
             <select data-role="${u.id}" aria-label="Role for ${esc(u.name)}">${options}</select>
-            <button class="del" data-reset="${u.id}" title="Set a new password">🔑</button>
+            ${u.email ? `<button class="del" data-reset="${u.id}" title="Set a new password">🔑</button>` : ''}
             <button class="del" data-del="${u.id}" title="Remove user">✕</button>
           </div>`}
         </div>`;
@@ -222,40 +222,54 @@
     if (row) select(row.dataset.id);
   });
 
+  let handingOver = false;
+  const passwordRule = (v) => (v.length < 6 ? 'Password must be at least 6 characters' : '');
+
   listEl.addEventListener('change', async (e) => {
     const id = e.target.dataset.role;
     if (!id) return;
     const u = users.get(id);
     const role = e.target.value;
+    const undo = () => { e.target.value = u.role; renderList(); };
     if (role === 'admin') {
-      if (!confirm(`Make ${u.name} the admin?\n\nThere can only be one admin. You will lose admin access and become a Driver.`)) {
-        e.target.value = u.role;
-        return;
-      }
+      const sure = await Ibraya.dialog({
+        title: `Make ${u.name} the admin?`,
+        message: 'There can only be one admin. You will lose admin access and become a Driver.',
+        okText: 'Make admin',
+      });
+      if (!sure) return undo();
       // Drivers sign in with just their phone, but the admin must use a password: set one for them.
-      const password = prompt(`Choose a password for ${u.name} (at least 6 characters).\nThey will sign in as admin with their phone number and this password.`);
-      if (password == null || password.length < 6) {
-        if (password != null) alert('Password must be at least 6 characters');
-        e.target.value = u.role;
-        return;
-      }
+      const password = await Ibraya.dialog({
+        title: `Choose a password for ${u.name}`,
+        message: 'They will sign in as admin with their phone number and this password.',
+        okText: 'Continue',
+        input: { type: 'text', placeholder: 'At least 6 characters', validate: passwordRule },
+      });
+      if (password == null) return undo();
       try {
         await Ibraya.account('reset-password', { userId: id, password });
       } catch (err) {
-        alert(Ibraya.friendlyError(err));
-        e.target.value = u.role;
-        return;
+        await Ibraya.message('Could not set the password', Ibraya.friendlyError(err));
+        return undo();
       }
-      alert(`Tell ${u.name}: sign in with "Admin? Sign in with password", your phone number and the password ${password}`);
+      handingOver = true;
+      const { data, error } = await sb.rpc('admin_set_role', { p_user: id, p_role: role });
+      if (error) {
+        handingOver = false;
+        await Ibraya.message('Could not change the role', Ibraya.friendlyError(error));
+        return undo();
+      }
+      users.set(id, fromRow(data));
+      await Ibraya.message(`${u.name} is now the admin`,
+        `Tell them: tap "Admin? Sign in with password", then use their phone number and the password: ${password}`);
+      return location.replace('/driver'); // you handed admin over
     }
     const { data, error } = await sb.rpc('admin_set_role', { p_user: id, p_role: role });
     if (error) {
-      alert(Ibraya.friendlyError(error));
-      e.target.value = u.role;
-    } else {
-      users.set(id, fromRow(data));
-      if (role === 'admin') return location.replace('/driver'); // you handed admin over
+      await Ibraya.message('Could not change the role', Ibraya.friendlyError(error));
+      return undo();
     }
+    users.set(id, fromRow(data));
     e.target.blur();
     renderList();
   });
@@ -265,28 +279,38 @@
     const id = e.target.dataset.del;
     if (!id) return;
     const u = users.get(id);
-    if (!confirm(`Remove ${u.name} (${u.phone || u.email})? They will need to create a new account.`)) return;
+    const sure = await Ibraya.dialog({
+      title: `Remove ${u.name}?`,
+      message: `${u.phone || u.email}\nThey will need to sign up again to use the app.`,
+      okText: 'Remove',
+      danger: true,
+    });
+    if (!sure) return;
     try {
       await Ibraya.account('delete-user', { userId: id });
       removeUser(id);
     } catch (err) {
-      alert(Ibraya.friendlyError(err));
+      await Ibraya.message('Could not remove', Ibraya.friendlyError(err));
     }
   });
 
-  // For drivers who forgot their password (phone accounts can't get reset emails).
+  // For email/Google accounts that forgot their password (drivers sign in by phone, no password).
   listEl.addEventListener('click', async (e) => {
     const id = e.target.dataset.reset;
     if (!id) return;
     const u = users.get(id);
-    const password = prompt(`New password for ${u.name} (at least 6 characters).\nThey will be signed out and must sign in with this password.`);
+    const password = await Ibraya.dialog({
+      title: `New password for ${u.name}`,
+      message: 'They will be signed out and must sign in with this password.',
+      okText: 'Set password',
+      input: { type: 'text', placeholder: 'At least 6 characters', validate: passwordRule },
+    });
     if (password == null) return;
-    if (password.length < 6) return alert('Password must be at least 6 characters');
     try {
       await Ibraya.account('reset-password', { userId: id, password });
-      alert(`Done. Tell ${u.name} their new password: ${password}`);
+      await Ibraya.message('Password changed', `Tell ${u.name} their new password: ${password}`);
     } catch (err) {
-      alert(Ibraya.friendlyError(err));
+      await Ibraya.message('Could not change the password', Ibraya.friendlyError(err));
     }
   });
 
@@ -297,7 +321,8 @@
   // ---------- data + realtime ----------
   function upsertUser(row) {
     const u = fromRow(row);
-    if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
+    // Lost admin (handed over): go to the driver page, unless we're still showing the handover message.
+    if (me && u.id === me.id && u.role !== 'admin' && !handingOver) return location.replace('/driver');
     users.set(u.id, u);
     renderMarker(u);
   }
