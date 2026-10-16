@@ -20,8 +20,27 @@
         <div>Ibraya Logistics<small>Tracking</small></div>
       </div>
 
-      <!-- Sign in / create account -->
-      <section id="view-main">
+      <!-- Drivers: phone number only -->
+      <section id="view-phone">
+        <h2 class="view-title">Sign in · سائن ان کریں</h2>
+        <form id="phone-form" novalidate>
+          <label class="field">
+            <span>Phone number · فون نمبر</span>
+            <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0300 1234567" required>
+          </label>
+          <label class="field" id="phone-name-field" hidden>
+            <span>Your name · آپ کا نام</span>
+            <input name="name" autocomplete="name" placeholder="e.g. Muhammad Ali">
+          </label>
+          <p class="hint" id="phone-new-hint" hidden style="margin:-4px 0 12px;text-align:left">New number: enter your name once. · نیا نمبر: ایک بار اپنا نام لکھیں۔</p>
+          <div class="error" id="phone-error"></div>
+          <button class="btn" id="phone-submit">Sign in · سائن ان کریں</button>
+        </form>
+        <p class="link-row"><button type="button" class="link" id="to-admin">Admin? Sign in with password</button></p>
+      </section>
+
+      <!-- Admin (and email accounts): sign in / create account with a password -->
+      <section id="view-main" hidden>
         <div class="tabs">
           <button type="button" data-mode="login" class="active">Sign in</button>
           <button type="button" data-mode="register">Create account</button>
@@ -52,7 +71,8 @@
             Continue with Google
           </button>
         </div>
-        <p class="hint" id="hint">Drivers: sign in with the phone number you registered with.</p>
+        <p class="hint" id="hint">Admin sign-in. Drivers don't need a password.</p>
+        <p class="link-row"><button type="button" class="link" id="to-phone">Driver? Sign in with phone number</button></p>
       </section>
 
       <!-- After email sign-up -->

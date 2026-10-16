@@ -227,11 +227,26 @@
     if (!id) return;
     const u = users.get(id);
     const role = e.target.value;
-    if (role === 'admin' && !confirm(
-      `Make ${u.name} the admin?\n\nThere can only be one admin. You will lose admin access and become a Driver.`
-    )) {
-      e.target.value = u.role;
-      return;
+    if (role === 'admin') {
+      if (!confirm(`Make ${u.name} the admin?\n\nThere can only be one admin. You will lose admin access and become a Driver.`)) {
+        e.target.value = u.role;
+        return;
+      }
+      // Drivers sign in with just their phone, but the admin must use a password: set one for them.
+      const password = prompt(`Choose a password for ${u.name} (at least 6 characters).\nThey will sign in as admin with their phone number and this password.`);
+      if (password == null || password.length < 6) {
+        if (password != null) alert('Password must be at least 6 characters');
+        e.target.value = u.role;
+        return;
+      }
+      try {
+        await Ibraya.account('reset-password', { userId: id, password });
+      } catch (err) {
+        alert(Ibraya.friendlyError(err));
+        e.target.value = u.role;
+        return;
+      }
+      alert(`Tell ${u.name}: sign in with "Admin? Sign in with password", your phone number and the password ${password}`);
     }
     const { data, error } = await sb.rpc('admin_set_role', { p_user: id, p_role: role });
     if (error) {
