@@ -166,6 +166,27 @@ button, input, select { font: inherit; color: inherit; }
   background: #fff; color: #111; font: 600 12px system-ui, sans-serif; padding: 2px 8px;
   border-radius: 99px; box-shadow: 0 1px 4px rgba(0,0,0,.25);
 }
+/* Active / Idle / Offline status chips (map labels, list rows, popups) */
+.state-chip {
+  display: inline-block; font-size: 11px; font-weight: 700; line-height: 1;
+  padding: 3px 7px; border-radius: 99px; vertical-align: 1px;
+}
+.state-active  { background: #dcf5e6; color: #11743b; }
+.state-idle    { background: #fdf0d5; color: #8a5a00; }
+.state-offline,
+.state-none    { background: #e9edf0; color: #5d6973; }
+:root[data-theme="dark"] .user .state-active  { background: rgba(61,220,132,.16); color: #5fe39b; }
+:root[data-theme="dark"] .user .state-idle    { background: rgba(245,165,36,.16); color: #f5b84a; }
+:root[data-theme="dark"] .user .state-offline,
+:root[data-theme="dark"] .user .state-none    { background: rgba(255,255,255,.08); color: var(--muted); }
+.truck-label .state-chip { margin-left: 6px; }
+
+/* idle trucks: amber ring, no pulse */
+.truck.idle .pulse { display: none; }
+.truck.idle .body { border-color: #f5a524; }
+.truck.idle .arrow { border-bottom-color: #f5a524; }
+.truck.none .pulse, .truck.none .arrow { display: none; }
+
 @keyframes pulse { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 
 /* theme switch (bottom-right) */
