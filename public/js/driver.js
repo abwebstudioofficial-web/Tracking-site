@@ -147,32 +147,53 @@
   }
 
   // ---------- inside the Ibraya Android app: 24/7 tracking by the native service ----------
-  const STEPS = [
-    {
-      key: 'location', en: 'Allow location', ur: 'لوکیشن کی اجازت دیں',
-      button: 'Allow · اجازت دیں', action: 'requestLocation',
-    },
-    {
-      key: 'background', en: 'Choose "Allow all the time"', ur: 'لوکیشن میں "ہر وقت اجازت دیں" منتخب کریں',
-      help: 'A screen opens: choose "Allow all the time", then come back. If the app\'s settings open instead: Permissions (App permissions) → Location → Allow all the time.',
-      button: 'Open settings · سیٹنگز کھولیں', action: 'openBackgroundLocationSettings', needs: 'location',
-    },
-    {
-      key: 'notifications', en: 'Allow notifications', ur: 'نوٹیفکیشن کی اجازت دیں',
-      button: 'Allow · اجازت دیں', action: 'requestNotifications',
-    },
-    {
-      key: 'battery', en: 'Stop battery saver from closing tracking', ur: 'بیٹری سیور کو ٹریکنگ بند کرنے سے روکیں',
-      help: 'Tap "Allow" on the next screen.',
-      button: 'Allow · اجازت دیں', action: 'requestIgnoreBatteryOptimizations',
-    },
-    {
-      key: 'gpsOn', en: 'Turn on Location (GPS)', ur: 'فون کی لوکیشن (GPS) آن کریں',
-      button: 'Turn on · آن کریں', action: 'openLocationSettings',
-    },
-  ];
+  // The steps (and where things are in the settings) depend a little on the phone brand.
+  const AUTOSTART_KEY = 'ibraya-autostart-done';
+  const autostartDone = () => { try { return localStorage.getItem(AUTOSTART_KEY) === '1'; } catch { return false; } };
+  function stepsFor(brand) {
+    const B = window.IbrayaBrands;
+    const bg = B.background[brand] || B.background.other;
+    const bat = B.battery[brand];
+    const auto = B.autostart[brand];
+    return [
+      {
+        key: 'location', en: 'Allow location', ur: 'لوکیشن کی اجازت دیں',
+        button: 'Allow · اجازت دیں', action: 'requestLocation',
+      },
+      {
+        key: 'background', en: 'Choose "Allow all the time"', ur: 'لوکیشن میں "ہر وقت اجازت دیں" منتخب کریں',
+        help: `A screen opens: choose "Allow all the time", then come back. If the app's settings open instead: ${bg[0]}.`,
+        helpUr: `ایک اسکرین کھلے گی: "Allow all the time" چنیں اور واپس آئیں۔ اگر ایپ کی سیٹنگز کھلیں تو: ${bg[1]}`,
+        button: 'Open settings · سیٹنگز کھولیں', action: 'openBackgroundLocationSettings', needs: 'location',
+      },
+      {
+        key: 'notifications', en: 'Allow notifications', ur: 'نوٹیفکیشن کی اجازت دیں',
+        button: 'Allow · اجازت دیں', action: 'requestNotifications',
+      },
+      {
+        key: 'battery', en: 'Stop battery saver from closing tracking', ur: 'بیٹری سیور کو ٹریکنگ بند کرنے سے روکیں',
+        help: `Tap "Allow" on the next screen.${bat ? ` ${bat[0]}` : ''}`,
+        helpUr: `اگلی اسکرین پر "Allow" دبائیں۔${bat ? ` ${bat[1]}` : ''}`,
+        button: 'Allow · اجازت دیں', action: 'requestIgnoreBatteryOptimizations',
+      },
+      ...(auto ? [{
+        key: 'autostart', en: 'Turn on Autostart', ur: 'آٹو اسٹارٹ آن کریں',
+        help: `${auto[0]} Then come back and tap "Done".`,
+        helpUr: `${auto[1]} پھر واپس آ کر "ہو گیا" دبائیں۔`,
+        button: 'Open settings · سیٹنگز کھولیں', action: 'openAutostartSettings',
+        button2: 'Done · ہو گیا', action2: 'autostartDone',
+      }] : []),
+      {
+        key: 'gpsOn', en: 'Turn on Location (GPS)', ur: 'فون کی لوکیشن (GPS) آن کریں',
+        button: 'Turn on · آن کریں', action: 'openLocationSettings',
+      },
+    ];
+  }
+  let STEPS = stepsFor('other');
 
   function renderSetup(st) {
+    st = { ...st, autostart: autostartDone() };
+    STEPS = stepsFor((window.IbrayaBrands && IbrayaBrands.detect(st.device)) || 'other');
     const stepsEl = document.getElementById('steps');
     const pending = STEPS.filter((step) => !st[step.key]);
     document.getElementById('app-setup').hidden = pending.length === 0;
@@ -181,8 +202,9 @@
       const locked = step.needs && !st[step.needs];
       return `<li class="step ${done ? 'done' : ''}">
         <span class="num">${done ? '✓' : i + 1}</span>
-        <div class="text"><b>${step.en}</b><span>${step.ur}</span>${!done && step.help ? `<small class="hint" style="text-align:left;display:block;margin:4px 0 0">${step.help}</small>` : ''}</div>
+        <div class="text"><b>${step.en}</b><span>${step.ur}</span>${!done && step.help ? `<small class="hint" style="text-align:left;display:block;margin:4px 0 0">${step.help}</small>` : ''}${!done && step.helpUr ? `<small class="hint" dir="rtl" style="text-align:right;display:block;margin:2px 0 0">${IbrayaBrands.urduHtml(step.helpUr)}</small>` : ''}</div>
         ${done ? '' : `<button class="btn" data-action="${step.action}" ${locked ? 'disabled' : ''}>${step.button}</button>`}
+        ${done || !step.button2 ? '' : `<button class="btn btn-ghost" data-action="${step.action2}">${step.button2}</button>`}
       </li>`;
     }).join('');
 
@@ -231,6 +253,10 @@
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       btn.disabled = true;
+      if (btn.dataset.action === 'autostartDone') {
+        try { localStorage.setItem(AUTOSTART_KEY, '1'); } catch { /* ignore */ }
+        return refreshApp();
+      }
       try {
         renderSetup(await Ibraya.tracker[btn.dataset.action]());
       } catch { /* the driver cancelled */ }

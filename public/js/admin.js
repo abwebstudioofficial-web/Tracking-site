@@ -157,6 +157,22 @@
     });
   }
 
+  // Other drivers within 30 km of this one, nearest first (straight-line distance).
+  const NEARBY_KM = 30;
+  function nearbyHtml(u) {
+    const here = [u.location.lat, u.location.lng];
+    const near = [...users.values()]
+      .filter((o) => o.id !== u.id && o.role !== 'admin' && o.location)
+      .map((o) => ({ o, m: map.distance(here, [o.location.lat, o.location.lng]) }))
+      .filter((x) => x.m <= NEARBY_KM * 1000)
+      .sort((a, b) => a.m - b.m);
+    if (!near.length) return `<div class="nearby"><b>Nearby (${NEARBY_KM} km)</b><br><span class="muted">No other drivers</span></div>`;
+    return `<div class="nearby"><b>Nearby (${NEARBY_KM} km, straight line)</b>
+      ${near.map(({ o, m }) => `<button class="link near" data-near="${o.id}">${esc(o.name)}</button>
+        <span>≈ ${distance(m)}</span> ${chip(o)}${isLive(o) ? '' : ` <span class="muted">seen ${ago(o.location.at)}</span>`}`).join('<br>')}
+    </div>`;
+  }
+
   function popupHtml(u) {
     const speed = kmh(u);
     return `<b>${esc(u.name)}</b><br>
@@ -165,6 +181,7 @@
       ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}
       ${u.battery != null ? `<br>Battery: ${u.battery}%` : ''}<br>
+      ${nearbyHtml(u)}
       <button class="link" data-history="${u.id}">Show history</button> ·
       <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   }
@@ -371,6 +388,14 @@
   }
   document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => showPanel('view-fleet')));
   $('bell').addEventListener('click', () => showPanel($('view-alerts').hidden ? 'view-alerts' : 'view-fleet'));
+
+  // Nearby driver in a popup: jump to that truck.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-near]');
+    if (!btn) return;
+    e.preventDefault();
+    select(btn.dataset.near);
+  });
 
   // History buttons in the list and in map popups.
   document.addEventListener('click', (e) => {
