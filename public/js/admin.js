@@ -38,9 +38,23 @@
     },
   });
   const kmh = (u) => (u.location && u.location.speed != null ? Math.round(u.location.speed * 3.6) : null);
-  // Speed is only "current" while the truck is live; otherwise it's the last reported speed.
-  const liveKmh = (u) => (isLive(u) ? kmh(u) : null);
   const speedText = (v) => (v === 0 ? 'Stopped' : `${v} km/h`);
+
+  // Status shown on the map and in the list. Speed itself is only shown in the popup.
+  const ACTIVE_KMH = 5; // at or above this the truck counts as moving
+  const STATUS = {
+    active: 'Active',   // live and moving
+    idle: 'Idle',       // live but stopped / crawling
+    offline: 'Offline', // no update for 2 minutes
+    none: 'No location yet',
+  };
+  function statusOf(u) {
+    if (!u.location) return 'none';
+    if (!isLive(u)) return 'offline';
+    return (kmh(u) ?? 0) >= ACTIVE_KMH ? 'active' : 'idle';
+  }
+  const STATUS_ORDER = { active: 0, idle: 1, offline: 2, none: 3 };
+  const chip = (st) => `<span class="state-chip state-${st}">${STATUS[st]}</span>`;
 
   // ---------- map ----------
   const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
@@ -65,7 +79,7 @@
       iconAnchor: [22, 22],
       popupAnchor: [0, -20],
       html: `
-        <div class="truck ${isLive(u) ? '' : 'offline'}">
+        <div class="truck ${statusOf(u)}">
           <div class="pulse"></div>
           <div style="position:absolute;inset:0;transform:rotate(${heading}deg)">
             ${showArrow ? '<div class="arrow"></div>' : ''}
@@ -73,7 +87,7 @@
           <div class="body">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h13v11H1z"/><path d="M14 8h4l4 4v3h-8z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
           </div>
-          <div class="truck-label">${esc(u.name)}${liveKmh(u) != null ? `<span class="truck-speed">${speedText(liveKmh(u))}</span>` : ''}</div>
+          <div class="truck-label">${esc(u.name)}${chip(statusOf(u))}</div>
         </div>`,
     });
   }
@@ -82,8 +96,8 @@
     const speed = kmh(u);
     return `<b>${esc(u.name)}</b><br>
       ${esc(ROLES[u.role] || u.role)} · ${esc(u.phone)}<br>
-      ${isLive(u) ? '🟢 Live' : '⚪ Offline'} · updated ${ago(u.location.at)}
-      ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: ${speedText(speed)}` : ''}
+      ${chip(statusOf(u))} · updated ${ago(u.location.at)}
+      ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}<br>
       <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   }
@@ -122,21 +136,23 @@
     const q = searchEl.value.trim().toLowerCase();
     const drivers = [...users.values()].filter((u) => u.role !== 'admin');
     document.getElementById('s-total').textContent = drivers.length;
-    document.getElementById('s-online').textContent = drivers.filter(isLive).length;
-    document.getElementById('s-located').textContent = drivers.filter((u) => u.location).length;
+    document.getElementById('s-active').textContent = drivers.filter((u) => statusOf(u) === 'active').length;
+    document.getElementById('s-idle').textContent = drivers.filter((u) => statusOf(u) === 'idle').length;
 
     const rows = [...users.values()]
       .filter((u) => !q || u.name.toLowerCase().includes(q) || u.phone.includes(q) || (u.email || '').toLowerCase().includes(q))
-      .sort((a, b) => (b.role === 'admin') - (a.role === 'admin') || isLive(b) - isLive(a) || a.name.localeCompare(b.name));
+      .sort((a, b) => (b.role === 'admin') - (a.role === 'admin')
+        || STATUS_ORDER[statusOf(a)] - STATUS_ORDER[statusOf(b)]
+        || a.name.localeCompare(b.name));
 
     listEl.innerHTML = rows.map((u) => {
       const self = me && u.id === me.id;
-      const speed = liveKmh(u);
-      const state = u.role === 'admin' ? '' : isLive(u) ? 'on' : '';
+      const st = statusOf(u);
+      const state = u.role === 'admin' ? '' : { active: 'on', idle: 'warn' }[st] || '';
       const contact = esc(u.phone || u.email || 'no phone yet');
       const meta = u.role === 'admin'
         ? `${contact} · not tracked`
-        : `${contact} · ${u.location ? `seen ${ago(u.location.at)}` : 'no location yet'}${speed != null ? ` · ${speedText(speed)}` : ''}`;
+        : `${contact} · ${chip(st)}${st === 'offline' ? ` seen ${ago(u.location.at)}` : ''}`;
       const options = Object.entries(ROLES)
         .map(([k, v]) => `<option value="${k}" ${k === u.role ? 'selected' : ''}>${v}</option>`)
         .join('');
