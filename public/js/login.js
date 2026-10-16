@@ -244,7 +244,8 @@
   });
 
   sb.auth.getSession().then(({ data: { session } }) => {
-    if (!session) return;
+    // Sent here with a message (e.g. "sign in again"): stay, never bounce straight back.
+    if (!session || Ibraya.urlError) return;
     if (Ibraya.cameFromRecovery) return show('view-new-password');
     continueSignedIn().catch((err) => ($('error').textContent = Ibraya.friendlyError(err)));
   });

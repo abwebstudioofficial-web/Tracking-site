@@ -79,6 +79,7 @@ window.Ibraya = (() => {
       body: JSON.stringify({ action, ...body }),
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401 && session) return signInAgain();
     if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong'), { data });
     return data;
   }
@@ -93,6 +94,21 @@ window.Ibraya = (() => {
 
   const homeFor = (profile) => (profile.role === 'admin' ? '/admin' : '/driver');
 
+  // The sign-in was ended on the server (e.g. a password was set for this account when it was
+  // made admin), but this phone still holds it: forget it and ask to sign in again.
+  async function signInAgain() {
+    await sb.auth.signOut({ scope: 'local' }).catch(() => {});
+    location.replace('/login#error_description=' + encodeURIComponent('Please sign in again. Admin: use your phone number and password.'));
+    return new Promise(() => {}); // the page is leaving
+  }
+
+  // Ask the server whether this sign-in is still valid (the page can't tell on its own).
+  async function sessionStillValid() {
+    const { error } = await sb.auth.getUser();
+    // A network problem is not a reason to sign out; only the server saying no is.
+    return !(error && (error.status === 401 || error.status === 403 || /session|jwt|token/i.test(error.message || '')));
+  }
+
   // For /driver and /admin: send the visitor to the right page if this isn't it.
   async function guard(page) {
     let profile = null;
@@ -101,6 +117,10 @@ window.Ibraya = (() => {
     } catch { /* treat as signed out */ }
     if (!profile || !profile.phone) {
       location.replace('/login');
+      return null;
+    }
+    if (!(await sessionStillValid())) {
+      await signInAgain();
       return null;
     }
     const home = homeFor(profile);
