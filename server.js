@@ -21,6 +21,42 @@ app.get('/', (req, res) => res.redirect('/login'));
 app.get('/login', page('login.html'));
 app.get('/driver', page('driver.html'));
 app.get('/admin', page('admin.html'));
+app.get('/download', page('download.html'));
+
+// The Android app is built by GitHub (.github/workflows/android.yml) and published as the latest
+// release. Serve it from this site with the Android file type, so phones offer to install it.
+const APK_SOURCE = 'https://github.com/abwebstudioofficial-web/Tracking-site/releases/latest/download/ibraya-tracking.apk';
+const APK_CACHE_MS = 10 * 60 * 1000;
+let apkCache = { at: 0, data: null };
+
+async function latestApk() {
+  if (apkCache.data && Date.now() - apkCache.at < APK_CACHE_MS) return apkCache.data;
+  const r = await fetch(APK_SOURCE, { redirect: 'follow' });
+  if (!r.ok) {
+    if (apkCache.data) return apkCache.data; // GitHub hiccup: keep serving the last good copy
+    return null;
+  }
+  apkCache = { at: Date.now(), data: Buffer.from(await r.arrayBuffer()) };
+  return apkCache.data;
+}
+
+app.get('/download/ibraya-tracking.apk', async (req, res) => {
+  try {
+    const apk = await latestApk();
+    if (!apk) return res.status(404).send('The app has not been published yet.');
+    res.set({
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Disposition': 'attachment; filename="Ibraya-Tracking.apk"',
+      'Content-Length': apk.length,
+      'Cache-Control': 'no-cache',
+    });
+    if (req.method === 'HEAD') return res.end();
+    res.end(apk);
+  } catch (err) {
+    console.error('APK download failed:', err.message);
+    res.status(502).send('Could not get the app right now. Please try again.');
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use('/vendor/leaflet', express.static(path.dirname(require.resolve('leaflet'))));

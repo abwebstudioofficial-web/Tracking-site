@@ -1,0 +1,14 @@
+{
+  "appId": "com.ibraya.tracking",
+  "appName": "Ibraya Tracking",
+  "webDir": "www",
+  "server": {
+    "url": "https://tracking-site.up.railway.app/login",
+    "androidScheme": "https",
+    "allowNavigation": ["tracking-site.up.railway.app"],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -9,6 +9,11 @@ window.Ibraya = (() => {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 
+  // Inside the Ibraya Android app the page can talk to the native 24/7 tracking service.
+  const cap = window.Capacitor;
+  const inApp = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const tracker = inApp && cap.Plugins ? cap.Plugins.IbrayaTracker || null : null;
+
   // Phone accounts sign in to Supabase with this placeholder email (no SMS needed).
   const PHONE_DOMAIN = 'phone.ibraya.local';
 
@@ -97,9 +102,14 @@ window.Ibraya = (() => {
 
   async function signOut() {
     if (leaving) return;
+    if (tracker) {
+      // Stop 24/7 tracking on this phone and cancel its device token.
+      await sb.rpc('unregister_my_tracker_devices').then(() => {}, () => {});
+      await tracker.stop().catch(() => {});
+    }
     await sb.auth.signOut().catch(() => {});
     toLogin();
   }
 
-  return { sb, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
+  return { sb, inApp, tracker, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
 })();

@@ -1,0 +1,87 @@
+# Builds the Ibraya Tracking Android app.
+# - Every push that changes mobile/ builds the APK (downloadable from the run's "Artifacts").
+# - On main, with the IBRAYA_KEYSTORE secret set, it also publishes the APK as the latest
+#   GitHub release, which the website's /download page hands to drivers.
+name: Android app
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install
+        run: npm ci
+
+      - name: Copy app config into the Android project
+        run: npx cap sync android
+
+      - name: Signing key
+        env:
+          IBRAYA_KEYSTORE: ${{ secrets.IBRAYA_KEYSTORE }}
+        run: |
+          if [ -n "$IBRAYA_KEYSTORE" ]; then
+            echo "$IBRAYA_KEYSTORE" | tr -d ' \n\r' | base64 -d > android/app/ibraya-release.jks
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+            echo "Using the Ibraya release key."
+          else
+            echo "::warning::IBRAYA_KEYSTORE secret is not set. Building with a test key; this APK will not be published."
+          fi
+
+      - name: Build APK
+        working-directory: mobile/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/ibraya-tracking.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ibraya-tracking-apk
+          path: ibraya-tracking.apk
+          retention-days: 30
+
+      - name: Publish for the download page
+        if: github.ref == 'refs/heads/main' && env.SIGNED == '1'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "app-v${{ github.run_number }}" ibraya-tracking.apk \
+            --title "Ibraya Tracking app 1.0.${{ github.run_number }}" \
+            --notes "Android app for Ibraya Logistics drivers. Drivers install it from the website's /download page." \
+            --latest

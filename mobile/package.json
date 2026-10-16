@@ -1,0 +1,16 @@
+{
+  "name": "ibraya-tracking-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ibraya Tracking Android app (Capacitor shell around the website + native background tracking service)",
+  "scripts": {
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.9",
+    "@capacitor/core": "7.6.9"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.6.9"
+  }
+}
