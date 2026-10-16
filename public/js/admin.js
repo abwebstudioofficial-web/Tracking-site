@@ -33,11 +33,16 @@
   // ---------- map ----------
   const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  const TILES = {
+    light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  };
+  const tiles = L.tileLayer(document.documentElement.dataset.theme === 'dark' ? TILES.dark : TILES.light, {
     maxZoom: 19,
     subdomains: 'abcd',
     attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
   }).addTo(map);
+  window.addEventListener('themechange', (e) => tiles.setUrl(e.detail === 'dark' ? TILES.dark : TILES.light));
 
   const markers = new Map();
   map.on('dragstart', () => { userMovedMap = true; });

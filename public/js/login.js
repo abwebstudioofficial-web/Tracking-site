@@ -84,7 +84,7 @@
     if (!window.google || !google.accounts) return setTimeout(() => initGoogle(clientId), 200);
     google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential });
     google.accounts.id.renderButton(document.getElementById('google-btn'), {
-      theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 300,
+      theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', width: 300,
     });
     googleArea.hidden = false;
   }
