@@ -10,10 +10,14 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -22,6 +26,8 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+
+import java.util.List;
 
 /**
  * Lets the website (running inside the app) control 24/7 tracking:
@@ -32,7 +38,9 @@ import com.getcapacitor.annotation.PermissionCallback;
     name = "IbrayaTracker",
     permissions = {
         @Permission(alias = "location", strings = { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }),
-        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" })
+        @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" }),
+        @Permission(alias = "background", strings = { Manifest.permission.ACCESS_BACKGROUND_LOCATION }),
+        @Permission(alias = "phone", strings = { Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_PHONE_NUMBERS })
     }
 )
 public class TrackerPlugin extends Plugin {
@@ -91,13 +99,97 @@ public class TrackerPlugin extends Plugin {
     }
 
     /**
-     * "Allow all the time" can't be granted from a pop-up on Android 11+; the driver has to pick it
-     * in the app's location settings, so open that screen.
+     * "Allow all the time". Asking for it makes Android open the app's own location-permission
+     * screen (the one with "Allow all the time"), on every brand. If Android refuses to ask again
+     * (it does after the driver said no twice), open the app's settings page instead.
      */
     @PluginMethod
     public void openBackgroundLocationSettings(PluginCall call) {
-        openAppSettings();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || getPermissionState("background") == PermissionState.GRANTED) {
+            call.resolve(status(getContext()));
+            return;
+        }
+        backgroundAskedAt = System.currentTimeMillis();
+        requestPermissionForAlias("background", call, "afterBackground");
+    }
+
+    private long backgroundAskedAt = 0;
+
+    @PermissionCallback
+    private void afterBackground(PluginCall call) {
+        // An answer within half a second means Android didn't show anything: fall back to settings.
+        if (getPermissionState("background") != PermissionState.GRANTED
+            && System.currentTimeMillis() - backgroundAskedAt < 500) {
+            openAppSettings();
+        }
+        TrackerService.startIfConfigured(getContext());
         call.resolve(status(getContext()));
+    }
+
+    /**
+     * The phone numbers of the SIM cards in this phone, so a driver can only sign in with a number
+     * whose SIM is in the phone. Many SIMs don't store their own number: those count as "unreadable".
+     * Result: { permitted, sims, unreadable, numbers: [...] }
+     */
+    @PluginMethod
+    public void getSimNumbers(PluginCall call) {
+        if (phonePermitted()) {
+            call.resolve(simInfo());
+        } else {
+            requestPermissionForAlias("phone", call, "afterPhone");
+        }
+    }
+
+    @PermissionCallback
+    private void afterPhone(PluginCall call) {
+        call.resolve(simInfo());
+    }
+
+    /** READ_PHONE_STATE is enough to list the SIMs (READ_PHONE_NUMBERS only exists on Android 8+). */
+    private boolean phonePermitted() {
+        return ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @SuppressWarnings({"MissingPermission", "deprecation"})
+    private JSObject simInfo() {
+        Context context = getContext();
+        JSObject r = new JSObject();
+        JSArray numbers = new JSArray();
+        boolean permitted = phonePermitted();
+        int sims = -1;
+        int unreadable = 0;
+        if (permitted) {
+            try {
+                SubscriptionManager sm = (SubscriptionManager) context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+                List<SubscriptionInfo> subs = sm.getActiveSubscriptionInfoList();
+                sims = subs == null ? 0 : subs.size();
+                if (subs != null) {
+                    for (SubscriptionInfo info : subs) {
+                        String n = null;
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            try { n = sm.getPhoneNumber(info.getSubscriptionId()); } catch (Exception ignored) { }
+                        }
+                        if (n == null || n.isEmpty()) n = info.getNumber();
+                        if ((n == null || n.isEmpty()) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            try {
+                                TelephonyManager tm = ((TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE))
+                                    .createForSubscriptionId(info.getSubscriptionId());
+                                n = tm.getLine1Number();
+                            } catch (Exception ignored) { }
+                        }
+                        if (n == null || n.isEmpty()) unreadable++;
+                        else numbers.put(n);
+                    }
+                }
+            } catch (Exception e) {
+                sims = -1;
+            }
+        }
+        r.put("permitted", permitted);
+        r.put("sims", sims);
+        r.put("unreadable", unreadable);
+        r.put("numbers", numbers);
+        return r;
     }
 
     @PluginMethod

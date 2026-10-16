@@ -154,7 +154,7 @@
     },
     {
       key: 'background', en: 'Choose "Allow all the time"', ur: 'لوکیشن میں "ہر وقت اجازت دیں" منتخب کریں',
-      help: 'Settings opens: tap Permissions → Location → Allow all the time, then come back.',
+      help: 'A screen opens: choose "Allow all the time", then come back. If the app\'s settings open instead: Permissions (App permissions) → Location → Allow all the time.',
       button: 'Open settings · سیٹنگز کھولیں', action: 'openBackgroundLocationSettings', needs: 'location',
     },
     {
@@ -216,6 +216,16 @@
     }
   }
 
+  // Each time the app opens: is this driver's SIM still in this phone? (Shown to the admin.)
+  let simCheckedAt = 0;
+  async function recheckSim() {
+    if (Date.now() - simCheckedAt < 60000) return;
+    simCheckedAt = Date.now();
+    const sim = await Ibraya.checkSim(profile.phone);
+    if (!sim || sim === 'denied') return;
+    await sb.rpc('set_my_sim_check', { p_status: sim === 'no_sim' ? 'mismatch' : sim }).then(() => {}, () => {});
+  }
+
   function startAppTracking() {
     document.getElementById('steps').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -229,8 +239,9 @@
     });
     // Coming back from Android settings: check again.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshApp();
+      if (document.visibilityState === 'visible') { refreshApp(); recheckSim(); }
     });
+    recheckSim();
     setInterval(() => { if (document.visibilityState === 'visible') refreshApp(); }, 5000);
     refreshApp();
   }

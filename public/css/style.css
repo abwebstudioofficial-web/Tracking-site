@@ -286,6 +286,13 @@ button, input, select { font: inherit; color: inherit; }
 .truck-label .state-chip { margin-left: 6px; }
 .state-alert   { background: #fde2e2; color: #b42323; }
 :root[data-theme="dark"] .user .state-alert { background: rgba(255,93,93,.16); color: #ff8080; }
+.sim-badge { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 99px; white-space: nowrap; }
+.sim-ok { background: #dcf5e6; color: #11743b; }
+.sim-unknown { background: #e9edf0; color: #5d6973; }
+.sim-bad { background: #fde2e2; color: #b42323; }
+:root[data-theme="dark"] .sim-ok { background: rgba(61,220,132,.16); color: #5fe39b; }
+:root[data-theme="dark"] .sim-unknown { background: rgba(255,255,255,.08); color: var(--muted); }
+:root[data-theme="dark"] .sim-bad { background: rgba(255,93,93,.16); color: #ff8080; }
 .dot.bad { background: var(--danger); box-shadow: 0 0 0 4px rgba(217, 56, 56, .18); }
 .truck.alert .pulse, .truck.alert .arrow { display: none; }
 .truck.alert .body { border-color: var(--danger); background: #4a555e; }

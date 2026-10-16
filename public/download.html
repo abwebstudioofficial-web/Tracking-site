@@ -21,6 +21,8 @@
     .app-row img { width: 64px; height: 64px; border-radius: 16px; border: 1px solid var(--line); background: #fff; }
     .app-row b { font-size: 18px; display: block; }
     .app-row span { color: var(--muted); font-size: 14px; }
+    .dl-steps .sub { display: block; font-size: 13.5px; color: var(--muted); margin-top: 3px; }
+    .dl-steps .sub.warn { color: var(--danger); }
     .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
     .guide { margin-top: 20px; }
     .guide-title { font-weight: 700; margin: 0 0 8px; text-align: center; }
@@ -49,10 +51,14 @@
 
       <ol class="dl-steps">
         <li><span class="n">1</span><div><b>Tap "Download app" above</b><span class="ur">اوپر "ایپ ڈاؤن لوڈ کریں" دبائیں</span></div></li>
-        <li><span class="n">2</span><div><b>When the download finishes, tap "Open"</b><span class="ur">ڈاؤن لوڈ مکمل ہونے پر "Open" دبائیں</span></div></li>
+        <li><span class="n">2</span><div><b>When the download finishes, tap "Open"</b>
+          <small class="sub">Nothing happens? Open the <b>Files</b> or <b>Downloads</b> app and tap <b>Ibraya-Tracking.apk</b>.</small>
+          <span class="ur">ڈاؤن لوڈ مکمل ہونے پر "Open" دبائیں۔ کچھ نہ ہو تو <b>Files</b> یا <b>Downloads</b> میں جا کر <b>Ibraya-Tracking.apk</b> دبائیں۔</span></div></li>
         <li><span class="n">3</span><div><b>If asked, tap "Settings" → turn on "Allow from this source" → go back</b><span class="ur">اگر پوچھا جائے تو "Settings" دبائیں، "Allow from this source" آن کریں، اور واپس آئیں</span></div></li>
-        <li><span class="n">4</span><div><b>Tap "Install", then "Open"</b><span class="ur">"Install" دبائیں، پھر "Open" دبائیں</span></div></li>
-        <li><span class="n">5</span><div><b>Sign in with your phone number and follow the steps in the app</b><span class="ur">اپنے فون نمبر سے سائن ان کریں اور ایپ میں دیے گئے مراحل مکمل کریں</span></div></li>
+        <li><span class="n">4</span><div><b>Tap "Install"</b>
+          <small class="sub warn">A warning like "Unsafe app" or "Play Protect" may appear. <b>Don't tap the big OK.</b> Tap the small text <b>"Install anyway"</b> (on some phones: "More details" first).</small>
+          <span class="ur">"Install" دبائیں۔ اگر "Unsafe app" یا "Play Protect" کی وارننگ آئے تو بڑا <b>OK نہ دبائیں</b>، نیچے چھوٹا لکھا <b>"Install anyway"</b> دبائیں۔</span></div></li>
+        <li><span class="n">5</span><div><b>Tap "Open", sign in with the number of the SIM in this phone, and follow the steps in the app</b><span class="ur">"Open" دبائیں، اسی فون میں لگی سم کے نمبر سے سائن ان کریں، اور ایپ کے مراحل مکمل کریں</span></div></li>
       </ol>
 
       <p class="note">If Chrome says the file "might be harmful", tap "Download anyway". It's safe: it comes from Ibraya Logistics, not the Play Store. For Android phones only.</p>
