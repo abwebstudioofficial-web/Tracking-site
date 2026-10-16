@@ -97,7 +97,19 @@ button, input, select { font: inherit; color: inherit; }
 
 .divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 18px 0 14px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.google-btn { display: flex; justify-content: center; min-height: 44px; }
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+}
+.btn-google:hover { border-color: var(--muted); }
+.view-title { font-size: 20px; margin: 0 0 10px; }
+.link-row { text-align: center; margin: 12px 0 0; }
+.link { background: none; border: 0; padding: 4px; color: var(--accent-text); font-weight: 600; cursor: pointer; }
+.link:hover { text-decoration: underline; }
+.notice {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 12px; font-size: 14px; margin: 4px 0 12px;
+}
 
 /* ---------- admin ---------- */
 .admin { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
