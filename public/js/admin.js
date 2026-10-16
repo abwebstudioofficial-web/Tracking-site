@@ -42,16 +42,11 @@
   // ---------- map ----------
   const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  const TILES = {
-    light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  };
-  const tiles = L.tileLayer(document.documentElement.dataset.theme === 'dark' ? TILES.dark : TILES.light, {
+  // OpenStreetMap tiles: free, no API key. Dark mode darkens the same map with a CSS filter.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    subdomains: 'abcd',
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
   }).addTo(map);
-  window.addEventListener('themechange', (e) => tiles.setUrl(e.detail === 'dark' ? TILES.dark : TILES.light));
 
   const markers = new Map();
   map.on('dragstart', () => { userMovedMap = true; });
