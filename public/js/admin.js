@@ -34,6 +34,8 @@
     role: r.role,
     problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / battery_dead / signed_out
     battery: r.battery ?? null,          // phone battery %, sent by the app
+    sim: r.sim_check || null,            // verified / unverified / mismatch (checked by the app)
+    simAt: r.sim_checked_at ? Date.parse(r.sim_checked_at) : null,
     problemAt: r.problem_at ? Date.parse(r.problem_at) : null,
     stoppedSince: r.stopped_since ? Date.parse(r.stopped_since) : null,
     location: r.lat == null ? null : {
@@ -194,6 +196,17 @@
     else map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
   }
 
+  // Was the driver's SIM found in the phone they use? (Checked by the app.)
+  const SIM_BADGE = {
+    verified: ['ok', 'SIM ✓', 'The SIM of this number is in the phone'],
+    unverified: ['unknown', 'SIM not checked', "This phone's SIM doesn't store its number, so it couldn't be checked"],
+    mismatch: ['bad', 'Wrong SIM', 'The SIM of this number is not in the phone'],
+  };
+  function simBadge(u) {
+    const b = SIM_BADGE[u.sim];
+    return b ? ` <span class="sim-badge sim-${b[0]}" title="${b[2]}">${b[1]}</span>` : '';
+  }
+
   // ---------- list ----------
   function renderList() {
     // Don't rebuild the list while the admin has a role dropdown open.
@@ -217,7 +230,7 @@
       const contact = esc(u.phone || u.email || 'no phone yet');
       const meta = u.role === 'admin'
         ? `${contact} · not tracked`
-        : `${contact} · ${chip(u)}${st === 'offline' || st === 'alert' ? ` seen ${ago(u.location.at)}` : ''}`;
+        : `${contact} · ${chip(u)}${st === 'offline' || st === 'alert' ? ` seen ${ago(u.location.at)}` : ''}${simBadge(u)}`;
       const options = Object.entries(ROLES)
         .map(([k, v]) => `<option value="${k}" ${k === u.role ? 'selected' : ''}>${v}</option>`)
         .join('');
@@ -376,6 +389,7 @@
     no_gps: 'No GPS signal',
     phone_off: 'Switched the phone off',
     battery_dead: 'Battery died',
+    wrong_sim: "Number's SIM is not in the phone",
     signed_out: 'Signed out of the app',
     no_signal: 'No signal',
     long_stop: 'Stopped',
@@ -391,6 +405,7 @@
     const list = [];
     users.forEach((u) => {
       if (u.role === 'admin' || !u.location) return;
+      if (u.sim === 'mismatch') list.push({ u, kind: 'wrong_sim', since: u.simAt || now });
       if (u.problem && (u.problem !== 'no_gps' || now - u.problemAt >= NO_GPS_ALERT_MS)) {
         list.push({ u, kind: u.problem, since: u.problemAt || u.location.at, battery: u.battery });
       } else if (!isLive(u) && now - u.location.at >= OFFLINE_ALERT_MS) {

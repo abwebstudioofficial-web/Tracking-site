@@ -34,6 +34,25 @@ window.Ibraya = (() => {
     return '+' + d;
   }
 
+  // Inside the app: is the SIM for this number in this phone?
+  // 'verified' | 'unverified' (the SIM doesn't store its own number) | 'mismatch' | 'no_sim'
+  // | 'denied' (no "Phone" permission) | null (browser, or an older app that can't check).
+  async function checkSim(phone) {
+    if (!tracker) return null;
+    let info;
+    try {
+      info = await tracker.getSimNumbers();
+    } catch {
+      return null; // older app version without this check
+    }
+    if (!info.permitted) return 'denied';
+    if (info.sims === 0) return 'no_sim';
+    if (info.sims < 0) return 'unverified';
+    const numbers = (info.numbers || []).map(normalizePhone).filter(Boolean);
+    if (numbers.includes(phone)) return 'verified';
+    return info.unreadable > 0 ? 'unverified' : 'mismatch';
+  }
+
   const phoneEmail = (phone) => `${phone.slice(1)}@${PHONE_DOMAIN}`;
   const isPhoneAccount = (user) => !!user?.email?.endsWith('@' + PHONE_DOMAIN);
 
@@ -170,5 +189,5 @@ window.Ibraya = (() => {
   }
   const message = (title, text) => dialog({ title, message: text, cancel: false });
 
-  return { sb, inApp, tracker, dialog, message, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
+  return { sb, inApp, tracker, checkSim, dialog, message, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
 })();

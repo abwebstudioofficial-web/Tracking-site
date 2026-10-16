@@ -113,6 +113,21 @@
       const asking = !$('phone-name-field').hidden;
       const name = phoneForm.name.value.trim();
       if (asking && !name) throw new Error('Please enter your name · اپنا نام لکھیں');
+      // In the app: the SIM for this number must be in this phone.
+      const sim = await Ibraya.checkSim(phone);
+      if (sim === 'denied') {
+        const open = await Ibraya.dialog({
+          title: 'Allow "Phone" · "فون" کی اجازت دیں',
+          message: 'The app checks that this number\'s SIM is in this phone. Open settings → Permissions → Phone → Allow, then come back.\nایپ چیک کرتی ہے کہ اس نمبر کی سم اسی فون میں ہے۔ سیٹنگز میں Permissions → Phone → Allow کریں۔',
+          okText: 'Open settings · سیٹنگز',
+        });
+        if (open) Ibraya.tracker.openAppSettings().catch(() => {});
+        return;
+      }
+      if (sim === 'no_sim') throw new Error('Put the SIM of this number in this phone · اس نمبر کی سم اس فون میں ڈالیں');
+      if (sim === 'mismatch') {
+        throw new Error('This number\'s SIM is not in this phone. Use the number of the SIM in this phone. · اس نمبر کی سم اس فون میں نہیں ہے۔ اسی فون کی سم والا نمبر استعمال کریں۔');
+      }
       let result;
       try {
         result = await Ibraya.account('phone-login', asking ? { phone, name } : { phone });
@@ -130,6 +145,7 @@
       if (result.needsName) return askName(true);
       const { error } = await sb.auth.verifyOtp({ token_hash: result.tokenHash, type: 'magiclink' });
       if (error) throw error;
+      if (sim) await sb.rpc('set_my_sim_check', { p_status: sim }).then(() => {}, () => {});
       await continueSignedIn();
     });
   });
