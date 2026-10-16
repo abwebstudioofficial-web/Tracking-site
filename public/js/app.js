@@ -111,5 +111,64 @@ window.Ibraya = (() => {
     toLogin();
   }
 
-  return { sb, inApp, tracker, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
+  // The site's own pop-up (instead of the browser's alert/confirm/prompt boxes).
+  // Resolves true/false for a question, the typed text (or null) for an input, true for a message.
+  function dialog({ title, message = '', okText = 'OK', cancelText = 'Cancel', danger = false, input = null, cancel = true }) {
+    return new Promise((resolve) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'modal-backdrop';
+      wrap.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+          <h2 id="modal-title"></h2>
+          <p class="modal-msg"></p>
+          ${input ? '<input class="modal-input">' : ''}
+          <div class="error modal-err"></div>
+          <div class="modal-actions">
+            ${cancel ? '<button type="button" class="btn btn-ghost modal-cancel"></button>' : ''}
+            <button type="button" class="btn modal-ok"></button>
+          </div>
+        </div>`;
+      wrap.querySelector('#modal-title').textContent = title;
+      wrap.querySelector('.modal-msg').textContent = message;
+      const ok = wrap.querySelector('.modal-ok');
+      ok.textContent = okText;
+      if (danger) ok.classList.add('btn-danger');
+      const cancelBtn = wrap.querySelector('.modal-cancel');
+      if (cancelBtn) cancelBtn.textContent = cancelText;
+      const field = wrap.querySelector('.modal-input');
+      if (field) {
+        field.type = input.type || 'text';
+        field.placeholder = input.placeholder || '';
+        field.autocomplete = 'off';
+      }
+      const close = (value) => {
+        document.removeEventListener('keydown', onKey);
+        wrap.remove();
+        resolve(value);
+      };
+      const submit = () => {
+        if (!field) return close(true);
+        const err = input.validate ? input.validate(field.value) : '';
+        if (err) {
+          wrap.querySelector('.modal-err').textContent = err;
+          field.focus();
+          return;
+        }
+        close(field.value);
+      };
+      const dismiss = () => close(field ? null : false);
+      const onKey = (e) => {
+        if (e.key === 'Escape' && cancel) dismiss();
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      };
+      ok.addEventListener('click', submit);
+      if (cancelBtn) cancelBtn.addEventListener('click', dismiss);
+      wrap.addEventListener('click', (e) => { if (e.target === wrap && cancel) dismiss(); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(wrap);
+      (field || ok).focus();
+    });
+  }
+  const message = (title, text) => dialog({ title, message: text, cancel: false });
+
+  return { sb, inApp, tracker, dialog, message, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
 })();
