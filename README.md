@@ -61,8 +61,22 @@ Phone + password sign-up needs no setup.
 - No storage volume is needed any more; all data lives in Supabase.
 - **Sign up as admin first** right after you deploy, since the first account to register becomes the admin.
 
-## Limits of browser-based tracking
+## Android app (24/7 tracking)
 
-Phone browsers pause GPS when the screen is off or the browser is in the background. The driver page asks the phone to keep the screen awake, but tracking while the phone is locked needs a native Android/iOS app. That can be added later on top of the same Supabase project.
+Websites can't use GPS with the screen off or the browser closed, so drivers use the **Ibraya Tracking** Android app (`mobile/`):
+
+- It opens the live website (same sign-in and screens), so website changes reach the app without a new install.
+- A native foreground service (`TrackerService.java`) keeps sending GPS with the screen off and the app closed, and `BootReceiver` restarts it after the phone reboots. It sends every 10 s while moving and every 30 s while parked, and shows a small "Ibraya Tracking is on" notification (Android requires it).
+- The service uses a per-phone **device token** (`tracker_devices` table, `track_with_device_token` function), not the login session. Signing out in the app, signing in on another phone, or removing the driver cancels it.
+- Inside the app the driver page shows a one-time setup checklist in English and Urdu: location, "Allow all the time", notifications, battery saver, GPS.
+- Google sign-in is hidden inside the app (Google blocks it in apps). Drivers who signed up with Google use "Forgot password?" to set a password.
+
+**Installing:** drivers open `https://<your-site>/download` on their Android phone and tap **Download app**, then **Open** and **Install**. The first time, Android asks to "Allow from this source". Android never lets a downloaded file install itself; for a one-tap install, publish the app on Google Play.
+
+**Building:** `.github/workflows/android.yml` builds the APK on GitHub whenever `mobile/` changes. On `main` it also publishes it as the latest GitHub release, which `/download` serves, but only when the **`IBRAYA_KEYSTORE`** repository secret is set (*Settings → Secrets and variables → Actions*). That secret is the base64 of the release signing key. **Keep a backup of the key file**: if it's lost, drivers must uninstall and reinstall to get updates.
+
+A phone that is switched off, or has no battery, can't be tracked; it shows as Offline until it's back on.
+
+iPhone isn't supported by the app (it would need an Apple developer account, $99/year).
 
 Free Supabase projects pause after about a week with no activity; daily use keeps it running.
