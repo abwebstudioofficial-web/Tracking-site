@@ -6,8 +6,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
@@ -66,6 +68,7 @@ public class TrackerService extends Service implements LocationListener {
     private static final long SEND_PARKED_MS = 30_000;       // every 30 s while parked (admin map: offline after 2 min)
     private static final long STOPPED_AFTER_MS = 15_000;     // no new reading for 15 s = not moving
     private static final float MOVING_MPS = 1.4f;            // ~5 km/h, same as the admin map's "Active"
+    private static final long NO_FIX_AFTER_MS = 3 * 60_000;  // no position for 3 min = tell the admin "no GPS"
 
     private static volatile boolean running = false;
 
@@ -79,6 +82,23 @@ public class TrackerService extends Service implements LocationListener {
     private long lastSentAt = 0;
     private Location prevForSpeed;
     private boolean sending = false;
+    private String reportedProblem = null; // last problem told to the admin (cleared by the next location)
+    private long startedAt = 0;
+
+    /** The driver switches the phone off: tell the admin before it goes dark. */
+    private final BroadcastReceiver shutdownReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final PendingResult pending = goAsync();
+            new Thread(() -> {
+                try {
+                    reportNow("phone_off", 4_000);
+                } finally {
+                    pending.finish();
+                }
+            }).start();
+        }
+    };
 
     static boolean isRunning() {
         return running;
@@ -115,12 +135,25 @@ public class TrackerService extends Service implements LocationListener {
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "IbrayaTracking::send");
         wakeLock.setReferenceCounted(false);
         createChannels();
+        try {
+            ContextCompat.registerReceiver(this, shutdownReceiver, new IntentFilter(Intent.ACTION_SHUTDOWN), ContextCompat.RECEIVER_EXPORTED);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not watch for shutdown", e);
+        }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (prefs(this).getString(KEY_TOKEN, null) == null || !hasLocationPermission(this)) {
+        if (prefs(this).getString(KEY_TOKEN, null) == null) {
             stopSelf();
+            return START_NOT_STICKY;
+        }
+        if (!hasLocationPermission(this)) {
+            // The driver took away the app's location permission: tell the admin, then stop.
+            new Thread(() -> {
+                reportNow("location_off", 10_000);
+                handler.post(this::stopSelf);
+            }).start();
             return START_NOT_STICKY;
         }
         try {
@@ -134,6 +167,7 @@ public class TrackerService extends Service implements LocationListener {
         }
         if (!running) {
             running = true;
+            startedAt = System.currentTimeMillis();
             startLocationUpdates();
             handler.postDelayed(heartbeat, SEND_PARKED_MS);
         }
@@ -145,6 +179,10 @@ public class TrackerService extends Service implements LocationListener {
     public void onDestroy() {
         running = false;
         handler.removeCallbacksAndMessages(null);
+        try {
+            unregisterReceiver(shutdownReceiver);
+        } catch (Exception ignored) {
+        }
         try {
             locationManager.removeUpdates(this);
         } catch (Exception ignored) {
@@ -216,18 +254,37 @@ public class TrackerService extends Service implements LocationListener {
         return speed > 70 ? -1 : speed; // ignore impossible jumps (> ~250 km/h)
     }
 
-    /** Re-sends the last position while parked, so the admin map keeps the truck as "Idle". */
+    /**
+     * Re-sends the last position while parked, so the admin map keeps the truck as "Idle".
+     * If location is switched off, or there has been no position for 3 minutes, the old position
+     * is NOT re-sent (that would hide where the truck really is): the admin is told instead.
+     */
     private final Runnable heartbeat = new Runnable() {
         @Override
         public void run() {
             if (!running) return;
-            if (lastLocation != null && System.currentTimeMillis() - lastSentAt >= SEND_PARKED_MS - 1_000) {
-                boolean stale = System.currentTimeMillis() - lastFixAt > STOPPED_AFTER_MS;
+            long now = System.currentTimeMillis();
+            if (!locationEnabled()) {
+                report("location_off");
+            } else if (now - Math.max(lastFixAt, startedAt) > NO_FIX_AFTER_MS) {
+                report("no_gps");
+            } else if (lastLocation != null && lastFixAt > 0 && now - lastSentAt >= SEND_PARKED_MS - 1_000) {
+                boolean stale = now - lastFixAt > STOPPED_AFTER_MS;
                 send(lastLocation, stale ? 0 : speedOf(lastLocation));
             }
             handler.postDelayed(this, SEND_PARKED_MS);
         }
     };
+
+    private boolean locationEnabled() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return locationManager.isLocationEnabled();
+            return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        } catch (Exception e) {
+            return true;
+        }
+    }
 
     // Unused on new Android versions, required on old ones.
     @Override
@@ -241,6 +298,7 @@ public class TrackerService extends Service implements LocationListener {
 
     @Override
     public void onProviderDisabled(String provider) {
+        if (!locationEnabled()) report("location_off");
     }
 
     // ---------- sending ----------
@@ -274,7 +332,7 @@ public class TrackerService extends Service implements LocationListener {
                 body.put("p_accuracy", accuracy == null ? JSONObject.NULL : accuracy.doubleValue());
                 body.put("p_speed", spd == null ? JSONObject.NULL : spd.doubleValue());
                 body.put("p_heading", heading == null ? JSONObject.NULL : heading.doubleValue());
-                result = post(url + "/rest/v1/rpc/track_with_device_token", apiKey, body.toString());
+                result = post(url + "/rest/v1/rpc/track_with_device_token", apiKey, body.toString(), 15_000);
             } catch (Exception e) {
                 error = e.getClass().getSimpleName() + ": " + e.getMessage();
             }
@@ -295,20 +353,60 @@ public class TrackerService extends Service implements LocationListener {
             return;
         }
         if ("false".equals(result != null ? result.trim() : null)) {
-            // The token is no longer valid: signed out on another phone, or the driver was removed.
-            edit.remove(KEY_TOKEN).putBoolean(KEY_SIGNED_OUT, true).putString(KEY_LAST_ERROR, "signed out").apply();
-            notifySignedOut();
-            stopSelf();
+            tokenRevoked();
             return;
         }
         edit.putLong(KEY_LAST_SENT, System.currentTimeMillis()).remove(KEY_LAST_ERROR).apply();
+        reportedProblem = null; // a location got through, so the admin sees the truck again
     }
 
-    private static String post(String address, String apiKey, String json) throws Exception {
+    // ---------- telling the admin why there is no location ----------
+
+    /** Reports a problem once (until a location gets through again). */
+    private void report(String problem) {
+        if (problem.equals(reportedProblem)) return;
+        reportedProblem = problem;
+        wakeLock.acquire(30_000);
+        network.execute(() -> {
+            String result = reportNow(problem, 15_000);
+            handler.post(() -> {
+                if (wakeLock.isHeld() && !sending) wakeLock.release();
+                if (result == null) reportedProblem = null; // not sent (no signal): try again next time
+                else if ("false".equals(result.trim())) tokenRevoked();
+            });
+        });
+    }
+
+    /** Sends a problem report straight away; returns the server's answer, or null if it failed. */
+    private String reportNow(String problem, int timeoutMs) {
+        SharedPreferences p = prefs(this);
+        String token = p.getString(KEY_TOKEN, null);
+        String url = p.getString(KEY_URL, null);
+        String apiKey = p.getString(KEY_APIKEY, null);
+        if (token == null || url == null || apiKey == null) return null;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("p_token", token);
+            body.put("p_problem", problem);
+            return post(url + "/rest/v1/rpc/tracker_report_problem", apiKey, body.toString(), timeoutMs);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not report " + problem, e);
+            return null;
+        }
+    }
+
+    /** The token is no longer valid: signed out on another phone, or the driver was removed. */
+    private void tokenRevoked() {
+        prefs(this).edit().remove(KEY_TOKEN).putBoolean(KEY_SIGNED_OUT, true).putString(KEY_LAST_ERROR, "signed out").apply();
+        notifySignedOut();
+        stopSelf();
+    }
+
+    private static String post(String address, String apiKey, String json, int timeoutMs) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(address).openConnection();
         try {
-            conn.setConnectTimeout(15_000);
-            conn.setReadTimeout(15_000);
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");

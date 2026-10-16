@@ -9,6 +9,8 @@ Live location tracking for Ibraya Logistics import/export truck drivers. Drivers
 - **Drivers see only their role** (and their name) plus a small "location sharing is on" indicator. Their phone sends its GPS position while the page is open (at most every 5 seconds, plus a check-in every 30 seconds while parked).
 - **The admin sees a live map** with every driver's truck. Trucks that reported in the last 2 minutes pulse green; older ones turn grey. Click a truck or a name to see speed, accuracy, last update and a Google Maps link.
 - **The admin manages users**: change roles (Driver, Import Driver, Export Driver, Admin), set a new password for a driver who forgot theirs (🔑), or remove a user (✕). There is only ever one admin; making someone else admin hands the role over.
+- **Trip history** (admin only, behind the *History* button on a driver or in a truck's popup): pick a day and see the exact route on the map, with every drive, stop and **no-signal gap** listed with exact times, how far the truck moved during each gap, and why (location turned off, phone switched off, signed out). Click the route for the exact time at that spot. Routes are kept for 30 days.
+- **Alerts** (the bell): a list with a sound when a driver turns off location, switches the phone off, signs out of the app, has no signal for 30+ minutes, or stands still for 1+ hour. *Last 24 hours* lists the problems that already ended. Thresholds are at the top of the alerts section in `public/js/admin.js`.
 - **Bright theme by default**, with a dark-mode switch in the bottom-right corner.
 
 ## Architecture
@@ -19,6 +21,7 @@ Live location tracking for Ibraya Logistics import/export truck drivers. Drivers
 | Supabase Auth | Accounts and sign-in (phone, email, Google). |
 | Supabase database (`profiles` table) | Names, phones, roles, last known location. Row-level security: drivers can only read their own row, only the admin can read everyone, and all changes go through checked database functions. |
 | Supabase Realtime | Pushes location and role changes to the admin map and driver pages instantly. |
+| `location_history`, `tracking_incidents` tables | The saved route points (a point every 20 s / 50 m while driving, every 2 min while parked) and the alert log. Admin-only. A nightly `pg_cron` job (`forget_old_history`) removes anything older than 30 days to stay within the free database size. |
 | Edge Function `account` | Phone sign-up (creates the account without SMS), and the admin's remove / reset-password actions. |
 
 Phone accounts sign in to Supabase with a hidden placeholder email `<digits>@phone.ibraya.local`. Pakistani numbers are normalised, so `0300 1234567`, `3001234567` and `+92 300 1234567` are the same account.
