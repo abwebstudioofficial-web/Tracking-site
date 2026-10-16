@@ -1,58 +1,86 @@
-(() => {
+(async () => {
+  const { sb } = Ibraya;
   const roleEl = document.getElementById('role');
   const whoEl = document.getElementById('who');
   const dot = document.getElementById('dot');
   const statusEl = document.getElementById('status');
   const enableBtn = document.getElementById('enable');
+
+  const SEND_EVERY_MS = 5000;      // at most one update every 5 seconds while moving
+  const HEARTBEAT_MS = 30000;      // re-send while parked so the admin sees the truck as live
   let watchId = null;
-  let wakeLock = null;
   let lastPos = null;
+  let lastSent = 0;
+  let sending = false;
+
+  document.getElementById('logout').addEventListener('click', () => Ibraya.signOut());
+
+  const profile = await Ibraya.guard('/driver');
+  if (!profile) return;
 
   function setStatus(text, state) {
     statusEl.textContent = text;
     dot.className = 'dot' + (state ? ' ' + state : '');
   }
 
-  function showUser(user) {
-    if (user.role === 'admin') return (location.href = '/admin');
-    roleEl.textContent = user.roleLabel;
-    whoEl.textContent = user.name;
+  function showProfile(p) {
+    if (p.role === 'admin') return location.replace('/admin');
+    roleEl.textContent = Ibraya.ROLES[p.role] || p.role;
+    whoEl.textContent = p.name;
   }
+  showProfile(profile);
 
-  fetch('/api/me')
-    .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then((d) => showUser(d.user))
-    .catch(() => (location.href = '/login'));
+  // Role changes by the admin show up immediately; removal signs the driver out.
+  sb.channel('my-profile')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.id}` },
+      (payload) => showProfile(payload.new))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.id}` },
+      () => Ibraya.signOut())
+    .subscribe();
 
-  const socket = io();
-  socket.on('connect_error', (err) => {
-    if (err.message === 'unauthorized') location.href = '/login';
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') Ibraya.toLogin();
   });
-  socket.on('role:changed', showUser);
-  socket.on('account:deleted', () => (location.href = '/login'));
+
+  async function sendLocation(force = false) {
+    if (!lastPos || sending) return;
+    if (!force && Date.now() - lastSent < SEND_EVERY_MS) return;
+    sending = true;
+    try {
+      const { error } = await sb.rpc('update_my_location', {
+        p_lat: lastPos.lat,
+        p_lng: lastPos.lng,
+        p_accuracy: lastPos.accuracy,
+        p_speed: lastPos.speed,
+        p_heading: lastPos.heading,
+      });
+      if (error) throw error;
+      lastSent = Date.now();
+      setStatus('Location sharing is on', 'on');
+    } catch (err) {
+      if (/account removed/i.test(err?.message || '')) return Ibraya.signOut();
+      setStatus('No connection. Retrying…', 'warn');
+    } finally {
+      sending = false;
+    }
+  }
+  setInterval(() => sendLocation(Date.now() - lastSent >= HEARTBEAT_MS), 5000);
+  window.addEventListener('online', () => sendLocation(true));
 
   // Ask the phone to keep the screen on, since browsers pause GPS when the page is hidden.
   async function keepAwake() {
     try {
       if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-        wakeLock = await navigator.wakeLock.request('screen');
+        await navigator.wakeLock.request('screen');
       }
     } catch { /* not supported or denied — tracking still works while the page is open */ }
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') keepAwake();
-  });
-
-  function sendLocation() {
-    if (!lastPos) return;
-    if (socket.connected) {
-      socket.emit('location', lastPos);
-      setStatus('Location sharing is on', 'on');
-    } else {
-      setStatus('Reconnecting…', 'warn');
+    if (document.visibilityState === 'visible') {
+      keepAwake();
+      sendLocation(true);
     }
-  }
-  socket.on('connect', sendLocation);
+  });
 
   function startTracking() {
     if (!('geolocation' in navigator)) {
@@ -67,8 +95,9 @@
     watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const c = pos.coords;
+        const first = !lastPos;
         lastPos = { lat: c.latitude, lng: c.longitude, accuracy: c.accuracy, speed: c.speed, heading: c.heading };
-        sendLocation();
+        sendLocation(first);
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
@@ -84,11 +113,5 @@
   }
 
   enableBtn.addEventListener('click', startTracking);
-  socket.on('disconnect', () => setStatus('Reconnecting…', 'warn'));
   startTracking();
-
-  document.getElementById('logout').addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
-    location.href = '/login';
-  });
 })();
