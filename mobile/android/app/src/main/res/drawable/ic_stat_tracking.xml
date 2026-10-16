@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small white truck for the "tracking is on" notification -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M1,4h13v11H1z M14,8h4l4,4v3h-8z M5.5,15.5a2,2 0,1 1,0 4a2,2 0,1 1,0 -4z M17.5,15.5a2,2 0,1 1,0 4a2,2 0,1 1,0 -4z" />
+</vector>

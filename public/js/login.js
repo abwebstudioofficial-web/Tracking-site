@@ -110,7 +110,8 @@
   // Only show the Google button once it has been switched on in Supabase.
   fetch(`${IBRAYA.supabaseUrl}/auth/v1/settings`, { headers: { apikey: IBRAYA.supabaseKey } })
     .then((r) => r.json())
-    .then((s) => { if (s?.external?.google) $('google-area').hidden = false; })
+    // Google doesn't allow its sign-in inside apps, so the Ibraya app shows phone/email only.
+    .then((s) => { if (s?.external?.google && !Ibraya.inApp) $('google-area').hidden = false; })
     .catch(() => {});
 
   // ---------- forgot password ----------
@@ -169,6 +170,10 @@
     document.querySelector('.tabs [data-mode=login]').click();
     show('view-main');
   }));
+
+  if (Ibraya.inApp) {
+    $('hint').textContent = 'Signed up with Google? Tap "Forgot password?" to set a password for your Gmail, then sign in with it.';
+  }
 
   // ---------- on load ----------
   if (Ibraya.urlError) $('error').textContent = Ibraya.urlError.replace(/\+/g, ' ');

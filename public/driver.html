@@ -29,7 +29,19 @@
       <div class="status"><span class="dot" id="dot"></span><span id="status">Starting location…</span></div>
 
       <button class="btn" id="enable" hidden>Turn on location</button>
-      <p class="hint">Keep this page open while driving.</p>
+      <p class="hint" id="keep-open">Keep this page open while driving.</p>
+
+      <!-- Android browser: point drivers to the app for 24/7 tracking -->
+      <a class="get-app" id="get-app" href="/download" hidden>
+        <b>Get the Ibraya app for 24/7 tracking</b>
+        <span>Tracks even with the screen off · اسکرین بند ہونے پر بھی ٹریکنگ</span>
+      </a>
+
+      <!-- Inside the app: one-time setup checklist -->
+      <section class="setup" id="app-setup" hidden>
+        <h2 class="setup-title">Finish setup · سیٹ اپ مکمل کریں</h2>
+        <ol class="steps" id="steps"></ol>
+      </section>
       <p style="text-align:center;margin-top:18px"><button class="btn-ghost btn" id="logout">Sign out</button></p>
     </div>
   </main>

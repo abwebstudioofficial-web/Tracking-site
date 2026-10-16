@@ -305,6 +305,11 @@
 
   me = await Ibraya.guard('/admin');
   if (!me) return;
+  // The admin isn't tracked: if this is the Ibraya app on the admin's phone, stop its tracking.
+  if (Ibraya.tracker) {
+    sb.rpc('unregister_my_tracker_devices').then(() => {}, () => {});
+    Ibraya.tracker.stop().catch(() => {});
+  }
   sb.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') Ibraya.toLogin();
   });

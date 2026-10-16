@@ -146,6 +146,101 @@
     keepAwake();
   }
 
-  enableBtn.addEventListener('click', startTracking);
-  startTracking();
+  // ---------- inside the Ibraya Android app: 24/7 tracking by the native service ----------
+  const STEPS = [
+    {
+      key: 'location', en: 'Allow location', ur: 'لوکیشن کی اجازت دیں',
+      button: 'Allow · اجازت دیں', action: 'requestLocation',
+    },
+    {
+      key: 'background', en: 'Choose "Allow all the time"', ur: 'لوکیشن میں "ہر وقت اجازت دیں" منتخب کریں',
+      help: 'Settings opens: tap Permissions → Location → Allow all the time, then come back.',
+      button: 'Open settings · سیٹنگز کھولیں', action: 'openBackgroundLocationSettings', needs: 'location',
+    },
+    {
+      key: 'notifications', en: 'Allow notifications', ur: 'نوٹیفکیشن کی اجازت دیں',
+      button: 'Allow · اجازت دیں', action: 'requestNotifications',
+    },
+    {
+      key: 'battery', en: 'Stop battery saver from closing tracking', ur: 'بیٹری سیور کو ٹریکنگ بند کرنے سے روکیں',
+      help: 'Tap "Allow" on the next screen.',
+      button: 'Allow · اجازت دیں', action: 'requestIgnoreBatteryOptimizations',
+    },
+    {
+      key: 'gpsOn', en: 'Turn on Location (GPS)', ur: 'فون کی لوکیشن (GPS) آن کریں',
+      button: 'Turn on · آن کریں', action: 'openLocationSettings',
+    },
+  ];
+
+  function renderSetup(st) {
+    const stepsEl = document.getElementById('steps');
+    const pending = STEPS.filter((step) => !st[step.key]);
+    document.getElementById('app-setup').hidden = pending.length === 0;
+    stepsEl.innerHTML = STEPS.map((step, i) => {
+      const done = !!st[step.key];
+      const locked = step.needs && !st[step.needs];
+      return `<li class="step ${done ? 'done' : ''}">
+        <span class="num">${done ? '✓' : i + 1}</span>
+        <div class="text"><b>${step.en}</b><span>${step.ur}</span>${!done && step.help ? `<small class="hint" style="text-align:left;display:block;margin:4px 0 0">${step.help}</small>` : ''}</div>
+        ${done ? '' : `<button class="btn" data-action="${step.action}" ${locked ? 'disabled' : ''}>${step.button}</button>`}
+      </li>`;
+    }).join('');
+
+    const keepOpen = document.getElementById('keep-open');
+    keepOpen.textContent = pending.length
+      ? 'Finish these steps once. Then tracking runs by itself. · یہ مراحل ایک بار مکمل کریں۔'
+      : 'You can close the app. Tracking keeps running. · ایپ بند کر سکتے ہیں، ٹریکنگ جاری رہے گی۔';
+    if (st.running && st.lastSentAt && Date.now() - st.lastSentAt < 3 * 60 * 1000) {
+      setStatus(pending.length ? 'Tracking is on · ٹریکنگ آن ہے' : 'Tracking 24/7 is on · ٹریکنگ چل رہی ہے', 'on');
+    } else if (st.running) {
+      setStatus(st.lastError && st.lastError !== 'signed out' ? 'Waiting for signal… · سگنل کا انتظار' : 'Starting tracking… · ٹریکنگ شروع ہو رہی ہے', 'warn');
+    } else {
+      setStatus('Tracking is off: finish the steps below · ٹریکنگ بند ہے', 'warn');
+    }
+  }
+
+  async function ensureDeviceToken(st) {
+    if (st.hasToken) return st;
+    const { data: token, error } = await sb.rpc('register_tracker_device', { p_device_name: st.device || null });
+    if (error) throw error;
+    return Ibraya.tracker.start({ token, supabaseUrl: IBRAYA.supabaseUrl, apiKey: IBRAYA.supabaseKey });
+  }
+
+  async function refreshApp() {
+    try {
+      let st = await Ibraya.tracker.getStatus();
+      st = await ensureDeviceToken(st);
+      renderSetup(st);
+    } catch (err) {
+      setStatus(Ibraya.friendlyError(err), 'warn');
+    }
+  }
+
+  function startAppTracking() {
+    document.getElementById('steps').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      btn.disabled = true;
+      try {
+        renderSetup(await Ibraya.tracker[btn.dataset.action]());
+      } catch { /* the driver cancelled */ }
+      btn.disabled = false;
+      setTimeout(refreshApp, 800);
+    });
+    // Coming back from Android settings: check again.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshApp();
+    });
+    setInterval(() => { if (document.visibilityState === 'visible') refreshApp(); }, 5000);
+    refreshApp();
+  }
+
+  if (Ibraya.tracker) {
+    startAppTracking();
+  } else {
+    // Android phone in a normal browser: offer the app.
+    if (/Android/i.test(navigator.userAgent)) document.getElementById('get-app').hidden = false;
+    enableBtn.addEventListener('click', startTracking);
+    startTracking();
+  }
 })();
