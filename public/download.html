@@ -32,7 +32,12 @@
         <div><b>Ibraya Tracking</b><span>Android app · 24/7 location for drivers</span></div>
       </div>
 
-      <a class="btn big-btn" id="download" href="/download/ibraya-tracking.apk" download="Ibraya-Tracking.apk">
+      <a class="btn big-btn" id="play" hidden target="_blank" rel="noopener">
+        ▶ Install from Google Play<br><span style="font-size:15px">گوگل پلے سے انسٹال کریں</span>
+      </a>
+      <p class="note" id="play-note" hidden>Use the Gmail account your manager added. Tap <b>Accept</b>, then <b>Install</b>.<br><span dir="rtl">وہی جی میل استعمال کریں جو منیجر نے شامل کیا ہے۔ "Accept" پھر "Install" دبائیں۔</span></p>
+      <details id="file-option"><summary class="note" id="file-summary" style="cursor:pointer;display:none">Can't use Google Play? Download the file instead</summary>
+            <a class="btn big-btn" id="download" href="/download/ibraya-tracking.apk" download="Ibraya-Tracking.apk">
         ⬇ Download app<br><span style="font-size:15px">ایپ ڈاؤن لوڈ کریں</span>
       </a>
       <div class="error" id="not-ready" hidden style="margin-top:10px">The app isn't available yet. Please try again later.</div>
@@ -47,9 +52,22 @@
 
       <p class="note">If Chrome says the file "might be harmful", tap "Download anyway". It's safe: it comes from Ibraya Logistics, not the Play Store. For Android phones only.</p>
       <p class="note" dir="rtl" style="text-align:right">اگر کروم کہے کہ فائل نقصان دہ ہو سکتی ہے تو "Download anyway" دبائیں۔ یہ ایپ ابرایا لاجسٹکس کی طرف سے ہے۔ صرف اینڈرائیڈ فون کے لیے۔</p>
+      </details>
     </div>
   </main>
+  <script src="/js/config.js"></script>
   <script>
+    // Google Play link set: show it first and fold the file download away as a backup.
+    const play = (window.IBRAYA || {}).playStoreUrl;
+    const fileOption = document.getElementById('file-option');
+    if (play) {
+      const btn = document.getElementById('play');
+      btn.href = play; btn.hidden = false;
+      document.getElementById('play-note').hidden = false;
+      document.getElementById('file-summary').style.display = '';
+    } else {
+      fileOption.open = true;
+    }
     // Hide the button with a clear message if the app hasn't been published yet.
     fetch('/download/ibraya-tracking.apk', { method: 'HEAD' }).then((r) => {
       if (!r.ok) { document.getElementById('download').hidden = true; document.getElementById('not-ready').hidden = false; }

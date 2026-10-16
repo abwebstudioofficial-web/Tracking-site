@@ -3,4 +3,7 @@
 window.IBRAYA = {
   supabaseUrl: 'https://qodvhcvqhwvllfmhfndo.supabase.co',
   supabaseKey: 'sb_publishable_Uoz99yKO6ZeRC573sMUfOA_0-gD31H5',
+  // Google Play internal-testing link for drivers (Play Console → Testing → Internal testing →
+  // Testers → "Copy link"). When set, /download shows a Google Play button first.
+  playStoreUrl: '',
 };

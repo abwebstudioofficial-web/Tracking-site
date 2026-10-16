@@ -45,6 +45,19 @@
       <p style="text-align:center;margin-top:18px"><button class="btn-ghost btn" id="logout">Sign out</button></p>
     </div>
   </main>
+
+  <!-- Location notice (Google Play "prominent disclosure"), shown once before asking for location -->
+  <div class="notice-backdrop" id="location-notice" hidden role="dialog" aria-modal="true" aria-labelledby="notice-title">
+    <div class="notice-card">
+      <h2 id="notice-title">Location tracking · لوکیشن ٹریکنگ</h2>
+      <p>Ibraya Tracking collects this phone's <b>location and speed</b>, <b>even when the app is closed or not in use</b>, so Ibraya Logistics can see where its trucks are on a live map.</p>
+      <p>Only the Ibraya Logistics admin can see it. It is used only for tracking company trucks and is not shared or sold. Tracking stops when you sign out.</p>
+      <p class="ur">ابرایا ٹریکنگ اس فون کی <b>لوکیشن اور رفتار</b> جمع کرتی ہے، <b>ایپ بند ہونے پر بھی</b>، تاکہ ابرایا لاجسٹکس اپنے ٹرکوں کو نقشے پر دیکھ سکے۔ یہ صرف ایڈمن دیکھ سکتا ہے اور کسی اور کو نہیں دی جاتی۔ سائن آؤٹ کرنے پر ٹریکنگ بند ہو جاتی ہے۔</p>
+      <p class="small"><a href="/privacy" target="_blank">Privacy policy</a></p>
+      <button class="btn" id="notice-accept">I agree · میں متفق ہوں</button>
+      <button class="btn btn-ghost" id="notice-decline" style="width:100%;margin-top:8px">Not now · ابھی نہیں</button>
+    </div>
+  </div>
   <script src="/vendor/supabase.js"></script>
   <script src="/js/config.js"></script>
   <script src="/js/app.js"></script>

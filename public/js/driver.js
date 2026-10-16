@@ -216,10 +216,32 @@
     }
   }
 
+  // Google Play requires telling the driver, before Android's permission pop-up, that the app
+  // collects location in the background and why. Shown once on this phone.
+  const NOTICE_KEY = 'ibraya-location-notice-accepted';
+  function locationNoticeAccepted() {
+    try { return localStorage.getItem(NOTICE_KEY) === '1'; } catch { return false; }
+  }
+  function askLocationNotice() {
+    return new Promise((resolve) => {
+      const dialog = document.getElementById('location-notice');
+      dialog.hidden = false;
+      const done = (ok) => {
+        dialog.hidden = true;
+        if (ok) { try { localStorage.setItem(NOTICE_KEY, '1'); } catch { /* private mode */ } }
+        resolve(ok);
+      };
+      document.getElementById('notice-accept').onclick = () => done(true);
+      document.getElementById('notice-decline').onclick = () => done(false);
+    });
+  }
+
   function startAppTracking() {
     document.getElementById('steps').addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
+      const needsNotice = ['requestLocation', 'openBackgroundLocationSettings'].includes(btn.dataset.action);
+      if (needsNotice && !locationNoticeAccepted() && !(await askLocationNotice())) return;
       btn.disabled = true;
       try {
         renderSetup(await Ibraya.tracker[btn.dataset.action]());

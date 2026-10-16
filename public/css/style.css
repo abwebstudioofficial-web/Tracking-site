@@ -136,6 +136,21 @@ button, input, select { font: inherit; color: inherit; }
 .step.done .btn { display: none; }
 .big-status { font-size: 17px; font-weight: 700; }
 
+/* location notice dialog (driver page in the app) */
+.notice-backdrop {
+  position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .45);
+  display: grid; place-items: end center; padding: 16px;
+}
+.notice-card {
+  width: 100%; max-width: 420px; background: var(--panel); border-radius: 20px; padding: 22px 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .3); max-height: 90vh; overflow-y: auto;
+}
+.notice-card h2 { margin: 0 0 10px; font-size: 19px; }
+.notice-card p { margin: 0 0 10px; font-size: 15px; }
+.notice-card .ur { direction: rtl; text-align: right; color: var(--muted); }
+.notice-card .small { font-size: 13px; }
+.notice-card a { color: var(--accent-text); }
+
 /* ---------- admin ---------- */
 .admin { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
 .sidebar { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }

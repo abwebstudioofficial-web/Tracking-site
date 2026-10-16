@@ -1,7 +1,9 @@
 # Builds the Ibraya Tracking Android app.
-# - Every push that changes mobile/ builds the APK (downloadable from the run's "Artifacts").
-# - On main, with the IBRAYA_KEYSTORE secret set, it also publishes the APK as the latest
-#   GitHub release, which the website's /download page hands to drivers.
+# - Every push that changes mobile/ builds the APK and the Google Play bundle (AAB),
+#   downloadable from the run's "Artifacts".
+# - On main, with the IBRAYA_KEYSTORE secret set, it also publishes both as the latest
+#   GitHub release: the APK is what the website's /download page hands out, the AAB is the
+#   file to upload to Google Play Console.
 name: Android app
 
 on:
@@ -60,19 +62,22 @@ jobs:
             echo "::warning::IBRAYA_KEYSTORE secret is not set. Building with a test key; this APK will not be published."
           fi
 
-      - name: Build APK
+      - name: Build APK and Play bundle
         working-directory: mobile/android
         env:
           VERSION_CODE: ${{ github.run_number }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/ibraya-tracking.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/ibraya-tracking.aab"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ibraya-tracking-apk
-          path: ibraya-tracking.apk
+          name: ibraya-tracking-app
+          path: |
+            ibraya-tracking.apk
+            ibraya-tracking.aab
           retention-days: 30
 
       - name: Publish for the download page
@@ -81,7 +86,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "app-v${{ github.run_number }}" ibraya-tracking.apk \
+          gh release create "app-v${{ github.run_number }}" ibraya-tracking.apk ibraya-tracking.aab \
             --title "Ibraya Tracking app 1.0.${{ github.run_number }}" \
-            --notes "Android app for Ibraya Logistics drivers. Drivers install it from the website's /download page." \
+            --notes "Android app for Ibraya Logistics drivers. ibraya-tracking.aab: upload to Google Play Console (internal testing). ibraya-tracking.apk: direct install from the website's /download page." \
             --latest
