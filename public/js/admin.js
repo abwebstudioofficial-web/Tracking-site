@@ -38,12 +38,16 @@
     },
   });
   const kmh = (u) => (u.location && u.location.speed != null ? Math.round(u.location.speed * 3.6) : null);
+  // Speed is only "current" while the truck is live; otherwise it's the last reported speed.
+  const liveKmh = (u) => (isLive(u) ? kmh(u) : null);
+  const speedText = (v) => (v === 0 ? 'Stopped' : `${v} km/h`);
 
   // ---------- map ----------
   const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  // OpenStreetMap tiles: free, no API key. Dark mode darkens the same map with a CSS filter.
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  // OpenStreetMap Germany's tiles: free, no API key, and they label places in both the
+  // local script and Latin letters (e.g. "لاہور Lahore"). Dark mode darkens them with a CSS filter.
+  L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
   }).addTo(map);
@@ -69,7 +73,7 @@
           <div class="body">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h13v11H1z"/><path d="M14 8h4l4 4v3h-8z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
           </div>
-          <div class="truck-label">${esc(u.name)}</div>
+          <div class="truck-label">${esc(u.name)}${liveKmh(u) != null ? `<span class="truck-speed">${speedText(liveKmh(u))}</span>` : ''}</div>
         </div>`,
     });
   }
@@ -79,7 +83,7 @@
     return `<b>${esc(u.name)}</b><br>
       ${esc(ROLES[u.role] || u.role)} · ${esc(u.phone)}<br>
       ${isLive(u) ? '🟢 Live' : '⚪ Offline'} · updated ${ago(u.location.at)}
-      ${speed != null ? `<br>Speed: ${speed} km/h` : ''}
+      ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: ${speedText(speed)}` : ''}
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}<br>
       <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   }
@@ -127,12 +131,12 @@
 
     listEl.innerHTML = rows.map((u) => {
       const self = me && u.id === me.id;
-      const speed = kmh(u);
+      const speed = liveKmh(u);
       const state = u.role === 'admin' ? '' : isLive(u) ? 'on' : '';
       const contact = esc(u.phone || u.email || 'no phone yet');
       const meta = u.role === 'admin'
         ? `${contact} · not tracked`
-        : `${contact} · ${u.location ? `seen ${ago(u.location.at)}` : 'no location yet'}${speed ? ` · ${speed} km/h` : ''}`;
+        : `${contact} · ${u.location ? `seen ${ago(u.location.at)}` : 'no location yet'}${speed != null ? ` · ${speedText(speed)}` : ''}`;
       const options = Object.entries(ROLES)
         .map(([k, v]) => `<option value="${k}" ${k === u.role ? 'selected' : ''}>${v}</option>`)
         .join('');
