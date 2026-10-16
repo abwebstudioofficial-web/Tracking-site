@@ -22,6 +22,10 @@
     .app-row b { font-size: 18px; display: block; }
     .app-row span { color: var(--muted); font-size: 14px; }
     .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
+    .guide { margin-top: 20px; }
+    .guide-title { font-weight: 700; margin: 0 0 8px; text-align: center; }
+    .guide video { display: block; width: 100%; max-height: 72vh; aspect-ratio: 9 / 16; object-fit: contain;
+                   border-radius: 16px; background: #e9eef1; border: 1px solid var(--line); }
   </style>
 </head>
 <body>
@@ -36,6 +40,12 @@
         ⬇ Download app<br><span style="font-size:15px">ایپ ڈاؤن لوڈ کریں</span>
       </a>
       <div class="error" id="not-ready" hidden style="margin-top:10px">The app isn't available yet. Please try again later.</div>
+
+      <!-- Video walkthrough of every tap, English + Urdu captions -->
+      <div class="guide">
+        <p class="guide-title">Watch how to install · انسٹال کرنے کا طریقہ دیکھیں</p>
+        <video src="/video/install-guide.mp4" poster="/video/install-guide-poster.jpg" controls playsinline preload="metadata"></video>
+      </div>
 
       <ol class="dl-steps">
         <li><span class="n">1</span><div><b>Tap "Download app" above</b><span class="ur">اوپر "ایپ ڈاؤن لوڈ کریں" دبائیں</span></div></li>
