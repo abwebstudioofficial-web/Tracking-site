@@ -36,9 +36,28 @@
         <div class="error" id="error"></div>
         <button class="btn" id="submit">Sign in</button>
       </form>
+      <div id="google-area" hidden>
+        <div class="divider"><span>or</span></div>
+        <div id="google-btn" class="google-btn"></div>
+      </div>
+
+      <form id="google-phone-form" hidden novalidate>
+        <p class="hint" style="margin-top:0">One last step: add the phone number you carry while driving.</p>
+        <label class="field">
+          <span>Full name</span>
+          <input name="name" autocomplete="name">
+        </label>
+        <label class="field">
+          <span>Phone number</span>
+          <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+92 300 1234567" required>
+        </label>
+        <div class="error" id="google-error"></div>
+        <button class="btn" id="google-submit">Continue</button>
+      </form>
       <p class="hint" id="hint">Drivers: sign in with the phone number you registered with.</p>
     </div>
   </main>
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="/js/login.js"></script>
 </body>
 </html>

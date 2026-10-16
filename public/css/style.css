@@ -74,6 +74,10 @@ button, input, select { font: inherit; color: inherit; }
 .dot.on { background: var(--online); box-shadow: 0 0 0 4px rgba(61, 220, 132, .18); }
 .dot.warn { background: #f5a524; }
 
+.divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 18px 0 14px; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.google-btn { display: flex; justify-content: center; min-height: 44px; }
+
 /* ---------- admin ---------- */
 .admin { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
 .sidebar { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }

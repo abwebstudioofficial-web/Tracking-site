@@ -6,6 +6,7 @@ const db = require('./db');
 
 const PORT = process.env.PORT || 3000;
 const COOKIE = 'ibraya_session';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 
 const app = express();
 const server = http.createServer(app);
@@ -17,7 +18,7 @@ app.use((req, res, next) => {
   res.set({
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'same-origin',
+    'Referrer-Policy': 'strict-origin-when-cross-origin', // Google sign-in needs the origin
   });
   next();
 });
@@ -114,6 +115,45 @@ app.post('/api/login', (req, res) => {
   const user = db.getUserByPhone(phone);
   if (!user || !db.verifyPassword(password, user.password_hash)) {
     return res.status(401).json({ error: 'Wrong phone number or password' });
+  }
+  setSessionCookie(req, res, db.createSession(user.id));
+  res.json({ user: selfView(user) });
+});
+
+app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID || null }));
+
+// Ask Google to check the ID token's signature and expiry, then check it was issued for us.
+async function verifyGoogleToken(credential) {
+  const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  if (!r.ok) return null;
+  const t = await r.json();
+  const issuerOk = t.iss === 'accounts.google.com' || t.iss === 'https://accounts.google.com';
+  if (t.aud !== GOOGLE_CLIENT_ID || !issuerOk || t.email_verified !== 'true') return null;
+  return { sub: t.sub, email: t.email, name: t.name || t.email };
+}
+
+// First Google sign-in also needs a phone number, since drivers are identified by phone.
+app.post('/api/google', async (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(404).json({ error: 'Google sign-in is not set up' });
+  let g;
+  try {
+    g = await verifyGoogleToken(String(req.body.credential || ''));
+  } catch {
+    return res.status(502).json({ error: 'Could not reach Google. Try again.' });
+  }
+  if (!g) return res.status(401).json({ error: 'Google sign-in failed. Try again.' });
+
+  let user = db.getUserByGoogleSub(g.sub);
+  if (!user) {
+    if (!req.body.phone) return res.json({ needsPhone: true, name: g.name });
+    const phone = db.normalizePhone(req.body.phone);
+    const name = String(req.body.name || g.name).trim().slice(0, 80) || g.name;
+    if (phone.replace('+', '').length < 7) return res.status(400).json({ error: 'Please enter a valid phone number' });
+    if (db.getUserByPhone(phone)) {
+      return res.status(409).json({ error: 'This phone number is already registered to another account.' });
+    }
+    user = db.createUser({ name, phone, googleSub: g.sub, email: g.email });
+    notifyAdmins();
   }
   setSessionCookie(req, res, db.createSession(user.id));
   res.json({ user: selfView(user) });

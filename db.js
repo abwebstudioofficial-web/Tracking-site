@@ -35,6 +35,12 @@ db.exec(`
   );
 `);
 
+// Columns added after the first release.
+const columns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!columns.includes('google_sub')) db.exec('ALTER TABLE users ADD COLUMN google_sub TEXT');
+if (!columns.includes('email')) db.exec('ALTER TABLE users ADD COLUMN email TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL');
+
 const ROLES = {
   admin: 'Admin',
   driver: 'Driver',
@@ -51,6 +57,7 @@ function hashPassword(password) {
 }
 
 function verifyPassword(password, stored) {
+  if (!stored) return false; // Google-only accounts have no password
   const [saltHex, hashHex] = stored.split(':');
   const expected = Buffer.from(hashHex, 'hex');
   const actual = crypto.scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
@@ -67,8 +74,9 @@ function normalizePhone(raw) {
 const stmts = {
   countUsers: db.prepare('SELECT COUNT(*) AS n FROM users'),
   insertUser: db.prepare(
-    'INSERT INTO users (name, phone, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO users (name, phone, password_hash, role, created_at, google_sub, email) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ),
+  byGoogleSub: db.prepare('SELECT * FROM users WHERE google_sub = ?'),
   byPhone: db.prepare('SELECT * FROM users WHERE phone = ?'),
   byId: db.prepare('SELECT * FROM users WHERE id = ?'),
   all: db.prepare('SELECT * FROM users ORDER BY role = \'admin\' DESC, name COLLATE NOCASE'),
@@ -99,11 +107,13 @@ function transaction(fn) {
 }
 
 // The very first account ever created becomes the admin.
-function createUser({ name, phone, password }) {
+// Pass either a password, or a googleSub for accounts that sign in with Google.
+function createUser({ name, phone, password, googleSub = null, email = null }) {
   return transaction(() => {
     const isFirst = stmts.countUsers.get().n === 0;
     const role = isFirst ? 'admin' : 'driver';
-    const info = stmts.insertUser.run(name, phone, hashPassword(password), role, Date.now());
+    const hash = password ? hashPassword(password) : '';
+    const info = stmts.insertUser.run(name, phone, hash, role, Date.now(), googleSub, email);
     return stmts.byId.get(info.lastInsertRowid);
   });
 }
@@ -134,6 +144,7 @@ module.exports = {
   createSession,
   getUserByPhone: (phone) => stmts.byPhone.get(phone),
   getUserById: (id) => stmts.byId.get(id),
+  getUserByGoogleSub: (sub) => stmts.byGoogleSub.get(sub),
   listUsers: () => stmts.all.all(),
   deleteUser: (id) => stmts.deleteUser.run(id),
   getSessionUser: (token) => (token ? stmts.sessionUser.get(token, Date.now()) : undefined),

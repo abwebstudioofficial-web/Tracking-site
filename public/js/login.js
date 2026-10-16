@@ -25,6 +25,74 @@
     });
   });
 
+  // ---------- Sign in with Google ----------
+  const googleArea = document.getElementById('google-area');
+  const phoneForm = document.getElementById('google-phone-form');
+  const googleError = document.getElementById('google-error');
+  let googleCredential = null;
+
+  async function postGoogle(extra = {}) {
+    const res = await fetch('/api/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: googleCredential, ...extra }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Google sign-in failed');
+    return data;
+  }
+
+  function goHome(user) {
+    location.href = user.role === 'admin' ? '/admin' : '/driver';
+  }
+
+  async function onGoogleCredential(response) {
+    googleCredential = response.credential;
+    error.textContent = '';
+    try {
+      const data = await postGoogle();
+      if (data.user) return goHome(data.user);
+      // New Google user: collect their phone number once.
+      form.hidden = true;
+      googleArea.hidden = true;
+      document.querySelector('.tabs').hidden = true;
+      hint.hidden = true;
+      phoneForm.hidden = false;
+      phoneForm.name.value = data.name || '';
+      phoneForm.phone.focus();
+    } catch (err) {
+      error.textContent = err.message;
+    }
+  }
+
+  phoneForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    googleError.textContent = '';
+    const btn = document.getElementById('google-submit');
+    btn.disabled = true;
+    try {
+      const data = await postGoogle({ name: phoneForm.name.value, phone: phoneForm.phone.value });
+      goHome(data.user);
+    } catch (err) {
+      googleError.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function initGoogle(clientId) {
+    if (!window.google || !google.accounts) return setTimeout(() => initGoogle(clientId), 200);
+    google.accounts.id.initialize({ client_id: clientId, callback: onGoogleCredential });
+    google.accounts.id.renderButton(document.getElementById('google-btn'), {
+      theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 300,
+    });
+    googleArea.hidden = false;
+  }
+
+  fetch('/api/config').then((r) => r.json()).then((c) => {
+    if (c.googleClientId) initGoogle(c.googleClientId);
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     error.textContent = '';
