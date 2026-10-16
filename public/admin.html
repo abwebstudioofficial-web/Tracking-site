@@ -22,18 +22,53 @@
           <div class="brand-mark"><img src="/img/logo.png" alt="Ibraya Logistics logo"></div>
           <div>Ibraya Logistics<small>Admin · Live tracking</small></div>
         </div>
-        <div>
+        <div class="header-actions">
           <button class="btn btn-ghost toggle-list" id="toggle">Drivers</button>
+          <button class="btn btn-ghost bell" id="bell" title="Alerts" aria-label="Alerts">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span class="bell-count" id="bell-count" hidden>0</span>
+          </button>
           <button class="btn btn-ghost" id="logout">Sign out</button>
         </div>
       </header>
-      <div class="stats">
-        <div class="stat"><b id="s-total">0</b><span>Drivers</span></div>
-        <div class="stat"><b id="s-active">0</b><span>Active</span></div>
-        <div class="stat"><b id="s-idle">0</b><span>Idle</span></div>
+
+      <div class="panel" id="view-fleet">
+        <div class="stats">
+          <div class="stat"><b id="s-total">0</b><span>Drivers</span></div>
+          <div class="stat"><b id="s-active">0</b><span>Active</span></div>
+          <div class="stat"><b id="s-idle">0</b><span>Idle</span></div>
+        </div>
+        <div class="search"><input id="search" placeholder="Search name, phone or email"></div>
+        <div class="list" id="list"></div>
       </div>
-      <div class="search"><input id="search" placeholder="Search name, phone or email"></div>
-      <div class="list" id="list"></div>
+
+      <div class="panel" id="view-alerts" hidden>
+        <div class="panel-head">
+          <button class="btn btn-ghost" data-back>← Drivers</button>
+          <h2>Alerts</h2>
+          <button class="btn btn-ghost" id="sound-toggle" title="Alert sound"></button>
+        </div>
+        <div class="list">
+          <h3 class="list-title">Now</h3>
+          <div id="alerts-now"></div>
+          <h3 class="list-title">Last 24 hours</h3>
+          <div id="alerts-earlier"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="view-history" hidden>
+        <div class="panel-head">
+          <button class="btn btn-ghost" data-back>← Drivers</button>
+          <h2 id="history-name"></h2>
+        </div>
+        <div class="day-picker">
+          <button class="btn btn-ghost" id="day-prev" aria-label="Previous day">‹</button>
+          <input type="date" id="day">
+          <button class="btn btn-ghost" id="day-next" aria-label="Next day">›</button>
+        </div>
+        <div class="stats stats-4" id="history-summary"></div>
+        <div class="list" id="history-list"></div>
+      </div>
     </aside>
     <section class="map-wrap"><div id="map"></div></section>
   </div>
