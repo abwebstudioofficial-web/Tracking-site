@@ -32,7 +32,8 @@
     phone: r.phone || '',
     email: r.email,
     role: r.role,
-    problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / signed_out
+    problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / battery_dead / signed_out
+    battery: r.battery ?? null,          // phone battery %, sent by the app
     problemAt: r.problem_at ? Date.parse(r.problem_at) : null,
     stoppedSince: r.stopped_since ? Date.parse(r.stopped_since) : null,
     location: r.lat == null ? null : {
@@ -56,6 +57,7 @@
     location_off: 'Location off',
     no_gps: 'No GPS',
     phone_off: 'Phone off',
+    battery_dead: 'Battery dead',
     signed_out: 'Signed out',
   };
   function statusOf(u) {
@@ -159,7 +161,8 @@
       ${esc(ROLES[u.role] || u.role)} · ${esc(u.phone)}<br>
       ${chip(u)} · updated ${ago(u.location.at)}
       ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
-      ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}<br>
+      ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}
+      ${u.battery != null ? `<br>Battery: ${u.battery}%` : ''}<br>
       <button class="link" data-history="${u.id}">Show history</button> ·
       <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   }
@@ -372,6 +375,7 @@
     location_off: 'Turned off location',
     no_gps: 'No GPS signal',
     phone_off: 'Switched the phone off',
+    battery_dead: 'Battery died',
     signed_out: 'Signed out of the app',
     no_signal: 'No signal',
     long_stop: 'Stopped',
@@ -388,7 +392,7 @@
     users.forEach((u) => {
       if (u.role === 'admin' || !u.location) return;
       if (u.problem && (u.problem !== 'no_gps' || now - u.problemAt >= NO_GPS_ALERT_MS)) {
-        list.push({ u, kind: u.problem, since: u.problemAt || u.location.at });
+        list.push({ u, kind: u.problem, since: u.problemAt || u.location.at, battery: u.battery });
       } else if (!isLive(u) && now - u.location.at >= OFFLINE_ALERT_MS) {
         list.push({ u, kind: 'no_signal', since: u.location.at });
       } else if (isLive(u) && u.stoppedSince && now - u.stoppedSince >= STOP_ALERT_MS) {
@@ -429,15 +433,19 @@
   });
   renderSoundToggle();
 
-  function alertRow({ u, kind, since, until, moved }) {
+  // "Switched the phone off (battery was 64%)": shows it wasn't a dead battery.
+  const batteryNote = (kind, battery) => (battery != null && kind === 'phone_off'
+    ? ` (battery was ${battery}%)` : '');
+
+  function alertRow({ u, kind, since, until, moved, battery }) {
     const name = esc(u ? u.name : 'Removed driver');
     const time = until
       ? `${when(since)}–${hm(until)} (${duration(until - since)})`
       : `since ${when(since)} (${duration(Date.now() - since)})`;
     const movedText = moved != null && moved >= 200 ? ` · moved ${distance(moved)}` : '';
-    const sev = kind === 'long_stop' || kind === 'no_gps' ? 'warn' : 'bad';
+    const sev = kind === 'long_stop' || kind === 'no_gps' || kind === 'battery_dead' ? 'warn' : 'bad';
     return `<div class="alert-row ${sev}">
-        <div><b>${name}</b> · ${ALERT_TEXT[kind]}</div>
+        <div><b>${name}</b> · ${ALERT_TEXT[kind]}${batteryNote(kind, battery)}</div>
         <div class="meta">${time}${movedText}</div>
         ${u ? `<div class="controls">
           ${until ? '' : `<button class="del" data-locate="${u.id}">Map</button>`}
@@ -464,7 +472,7 @@
       .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
       .map((i) => alertRow({
         u: users.get(i.user_id), kind: i.kind, since: Date.parse(i.started_at),
-        until: Date.parse(i.ended_at), moved: i.moved_m,
+        until: Date.parse(i.ended_at), moved: i.moved_m, battery: i.battery,
       }));
     $('alerts-earlier').innerHTML = earlier.join('') || '<p class="hint">Nothing in the last 24 hours.</p>';
   }
@@ -584,7 +592,7 @@
       return `<div class="tl stop" data-entry="${i}"><b>Stopped ${duration(e.to - e.from)}</b><span>${range}</span></div>`;
     }
     if (e.type === 'gap') {
-      const why = e.why.map((x) => `${ALERT_TEXT[x.kind]} at ${hm(Date.parse(x.started_at))}`).join(' · ');
+      const why = e.why.map((x) => `${ALERT_TEXT[x.kind]}${batteryNote(x.kind, x.battery)} at ${hm(Date.parse(x.started_at))}`).join(' · ');
       return `<div class="tl gap" data-entry="${i}"><b>No signal ${duration(e.to - e.from)}</b><span>${range}${e.moved >= 200 ? ` · truck moved <b>${distance(e.moved)}</b> meanwhile` : ''}</span>${why ? `<span class="why">${why}</span>` : ''}</div>`;
     }
     return `<div class="tl ${e.type}" data-entry="${i}"><b>${e.title}</b><span>${e.text}</span></div>`;
@@ -644,7 +652,7 @@
     const lastT = points.length ? points[points.length - 1].t : null;
     const openIncident = data.incidents.find((x) => !x.ended_at);
     if (openIncident) {
-      entries.push({ type: 'now', title: `${ALERT_TEXT[openIncident.kind]}`, text: `since ${when(Date.parse(openIncident.started_at))}, still now` });
+      entries.push({ type: 'now', title: `${ALERT_TEXT[openIncident.kind]}${batteryNote(openIncident.kind, openIncident.battery)}`, text: `since ${when(Date.parse(openIncident.started_at))}, still now` });
     } else if (sameDay(day, Date.now()) && u && lastT && !isLive(u) && Date.now() - lastT > GAP_MS) {
       entries.push({ type: 'now', title: 'No signal', text: `since ${hm(lastT)} (${duration(Date.now() - lastT)}), still now` });
     }

@@ -14,6 +14,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.location.Location;
+import android.os.BatteryManager;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
@@ -92,7 +93,10 @@ public class TrackerService extends Service implements LocationListener {
             final PendingResult pending = goAsync();
             new Thread(() -> {
                 try {
-                    reportNow("phone_off", 4_000);
+                    // Shutting down at 0-2 % without a charger = the battery died, not the driver.
+                    int level = batteryLevel(context);
+                    boolean dead = level >= 0 && level <= 2 && !isCharging(context);
+                    reportNow(dead ? "battery_dead" : "phone_off", 4_000);
                 } finally {
                     pending.finish();
                 }
@@ -111,6 +115,27 @@ public class TrackerService extends Service implements LocationListener {
     static boolean hasLocationPermission(Context context) {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
             || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Battery level 0-100, or -1 if unknown. */
+    static int batteryLevel(Context context) {
+        try {
+            BatteryManager bm = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
+            int level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+            return level >= 0 && level <= 100 ? level : -1;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    static boolean isCharging(Context context) {
+        try {
+            Intent battery = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            int plugged = battery == null ? 0 : battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0);
+            return plugged != 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** Starts the service if this phone has a device token and location permission. */
@@ -320,6 +345,7 @@ public class TrackerService extends Service implements LocationListener {
         final Float accuracy = location.hasAccuracy() ? location.getAccuracy() : null;
         final Float heading = location.hasBearing() ? location.getBearing() : null;
         final Float spd = speed >= 0 ? speed : null;
+        final int battery = batteryLevel(this);
         wakeLock.acquire(30_000);
         network.execute(() -> {
             String result = null;
@@ -332,6 +358,7 @@ public class TrackerService extends Service implements LocationListener {
                 body.put("p_accuracy", accuracy == null ? JSONObject.NULL : accuracy.doubleValue());
                 body.put("p_speed", spd == null ? JSONObject.NULL : spd.doubleValue());
                 body.put("p_heading", heading == null ? JSONObject.NULL : heading.doubleValue());
+                body.put("p_battery", battery >= 0 ? battery : JSONObject.NULL);
                 result = post(url + "/rest/v1/rpc/track_with_device_token", apiKey, body.toString(), 15_000);
             } catch (Exception e) {
                 error = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -388,6 +415,8 @@ public class TrackerService extends Service implements LocationListener {
             JSONObject body = new JSONObject();
             body.put("p_token", token);
             body.put("p_problem", problem);
+            int battery = batteryLevel(this);
+            body.put("p_battery", battery >= 0 ? battery : JSONObject.NULL);
             return post(url + "/rest/v1/rpc/tracker_report_problem", apiKey, body.toString(), timeoutMs);
         } catch (Exception e) {
             Log.w(TAG, "Could not report " + problem, e);
