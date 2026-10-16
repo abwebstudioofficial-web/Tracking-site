@@ -59,12 +59,45 @@
   // ---------- map ----------
   const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
-  // OpenStreetMap Germany's tiles: free, no API key, and they label places in both the
-  // local script and Latin letters (e.g. "لاہور Lahore"). Dark mode darkens them with a CSS filter.
-  L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
-  }).addTo(map);
+  // Base map: OpenFreeMap (free, no API key), drawn in the browser by MapLibre so we can
+  // choose the labels: English name on top, Urdu (or other local script) underneath.
+  // Falls back to plain OpenStreetMap tiles if OpenFreeMap can't be reached.
+  const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+
+  function bilingualLabel(separator) {
+    return ['let',
+      'en', ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']],
+      'local', ['coalesce', ['get', 'name:ur'], ['get', 'name:nonlatin'], ''],
+      ['case',
+        ['all', ['!=', ['var', 'local'], ''], ['!=', ['var', 'local'], ['var', 'en']]],
+        ['concat', ['var', 'en'], separator, ['var', 'local']],
+        ['var', 'en']]];
+  }
+
+  async function addBaseMap() {
+    try {
+      if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre not loaded');
+      // Joins Urdu/Arabic letters correctly and draws them right-to-left.
+      maplibregl.setRTLTextPlugin(`${location.origin}/vendor/rtl-text.js`, true).catch(() => {});
+      const res = await fetch('https://tiles.openfreemap.org/styles/liberty');
+      if (!res.ok) throw new Error(`style ${res.status}`);
+      const style = await res.json();
+      for (const layer of style.layers) {
+        const field = layer.layout && layer.layout['text-field'];
+        const text = JSON.stringify(field || '');
+        if (!text.includes('name')) continue; // leave road numbers etc. alone
+        // Point labels (cities) get two lines; labels along roads/rivers stay on one line.
+        layer.layout['text-field'] = bilingualLabel(text.includes('\\n') ? '\n' : ' ');
+      }
+      L.maplibreGL({ style }).addTo(map);
+      map.attributionControl.addAttribution(
+        `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
+      );
+    } catch {
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: OSM_ATTR }).addTo(map);
+    }
+  }
+  addBaseMap();
 
   const markers = new Map();
   map.on('dragstart', () => { userMovedMap = true; });
