@@ -12,8 +12,11 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@mapbox/mapbox-gl-rtl-text": "0.2.3",
+    "@maplibre/maplibre-gl-leaflet": "^0.1.4",
     "@supabase/supabase-js": "^2.118.0",
     "express": "^4.21.2",
-    "leaflet": "^1.9.4"
+    "leaflet": "^1.9.4",
+    "maplibre-gl": "4.7.1"
   }
 }

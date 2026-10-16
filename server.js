@@ -24,6 +24,14 @@ app.get('/admin', page('admin.html'));
 
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use('/vendor/leaflet', express.static(path.dirname(require.resolve('leaflet'))));
+const pkgDir = (name) => path.dirname(require.resolve(`${name}/package.json`));
+app.use('/vendor/maplibre', express.static(path.join(pkgDir('maplibre-gl'), 'dist')));
+app.get('/vendor/maplibre-leaflet.js', (req, res) =>
+  res.sendFile(path.join(pkgDir('@maplibre/maplibre-gl-leaflet'), 'leaflet-maplibre-gl.js'))
+);
+app.get('/vendor/rtl-text.js', (req, res) =>
+  res.sendFile(path.join(pkgDir('@mapbox/mapbox-gl-rtl-text'), 'mapbox-gl-rtl-text.min.js'))
+);
 app.get('/vendor/supabase.js', (req, res) =>
   res.sendFile(path.join(path.dirname(require.resolve('@supabase/supabase-js/package.json')), 'dist/umd/supabase.js'))
 );
