@@ -31,7 +31,7 @@
   const kmh = (u) => (u.location && u.location.speed != null ? Math.round(u.location.speed * 3.6) : null);
 
   // ---------- map ----------
-  const map = L.map('map', { zoomControl: false }).setView([25.2048, 55.2708], 6);
+  const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
