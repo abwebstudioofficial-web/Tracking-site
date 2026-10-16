@@ -10,7 +10,7 @@ Live location tracking for Ibraya Logistics import/export truck drivers. Drivers
 - **The admin sees a live map** with every driver's truck. Trucks that reported in the last 2 minutes pulse green; older ones turn grey. Click a truck or a name to see speed, accuracy, last update and a Google Maps link.
 - **The admin manages users**: change roles (Driver, Import Driver, Export Driver, Admin), set a new password for a driver who forgot theirs (🔑), or remove a user (✕). There is only ever one admin; making someone else admin hands the role over.
 - **Trip history** (admin only, behind the *History* button on a driver or in a truck's popup): pick a day and see the exact route on the map, with every drive, stop and **no-signal gap** listed with exact times, how far the truck moved during each gap, and why (location turned off, phone switched off, signed out). Click the route for the exact time at that spot. Routes are kept for 30 days.
-- **Alerts** (the bell): a list with a sound when a driver turns off location, switches the phone off, signs out of the app, has no signal for 30+ minutes, or stands still for 1+ hour. *Last 24 hours* lists the problems that already ended. Thresholds are at the top of the alerts section in `public/js/admin.js`.
+- **Alerts** (the bell): a list with a sound when a driver turns off location, switches the phone off (with the battery % it had, so it isn't mistaken for a dead battery), the battery dies, signs out of the app, has no signal for 30+ minutes, or stands still for 1+ hour. *Last 24 hours* lists the problems that already ended. Thresholds are at the top of the alerts section in `public/js/admin.js`.
 - **Bright theme by default**, with a dark-mode switch in the bottom-right corner.
 
 ## Architecture
