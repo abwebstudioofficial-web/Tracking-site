@@ -139,6 +139,8 @@ button, input, select { font: inherit; color: inherit; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font-weight: 700; margin-left: 6px; }
 
 #map { height: 100%; width: 100%; background: #dfe5e8; }
+:root[data-theme="dark"] #map { background: #1b2228; }
+:root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
 .map-wrap { position: relative; min-height: 0; }
 .toggle-list { display: none; }
 
