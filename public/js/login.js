@@ -1,7 +1,7 @@
 (() => {
   const { sb } = Ibraya;
   const $ = (id) => document.getElementById(id);
-  const views = ['view-main', 'view-check-email', 'view-forgot', 'view-new-password', 'view-complete'];
+  const views = ['view-phone', 'view-main', 'view-check-email', 'view-forgot', 'view-new-password', 'view-complete'];
   const form = $('form');
   let mode = 'login';
   let busy = false;
@@ -96,6 +96,47 @@
     });
   });
 
+  // ---------- drivers: phone number only ----------
+  const phoneForm = $('phone-form');
+  function askName(show) {
+    $('phone-name-field').hidden = !show;
+    $('phone-new-hint').hidden = !show;
+    if (show) phoneForm.name.focus();
+  }
+  phoneForm.phone.addEventListener('input', () => askName(false));
+
+  phoneForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    withButton($('phone-submit'), $('phone-error'), async () => {
+      const phone = Ibraya.normalizePhone(phoneForm.phone.value);
+      if (!phone) throw new Error('Enter a valid phone number · درست فون نمبر لکھیں');
+      const asking = !$('phone-name-field').hidden;
+      const name = phoneForm.name.value.trim();
+      if (asking && !name) throw new Error('Please enter your name · اپنا نام لکھیں');
+      let result;
+      try {
+        result = await Ibraya.account('phone-login', asking ? { phone, name } : { phone });
+      } catch (err) {
+        if (err.data && err.data.needsPassword) {
+          // The admin's number: switch to the password form.
+          show('view-main');
+          form.identity.value = phoneForm.phone.value;
+          form.password.focus();
+          $('error').textContent = err.message;
+          return;
+        }
+        throw err;
+      }
+      if (result.needsName) return askName(true);
+      const { error } = await sb.auth.verifyOtp({ token_hash: result.tokenHash, type: 'magiclink' });
+      if (error) throw error;
+      await continueSignedIn();
+    });
+  });
+
+  $('to-admin').addEventListener('click', () => { $('error').textContent = ''; show('view-main'); });
+  $('to-phone').addEventListener('click', () => { $('phone-error').textContent = ''; show('view-phone'); });
+
   // ---------- Google ----------
   $('google-btn').addEventListener('click', () => {
     withButton($('google-btn'), $('error'), async () => {
@@ -170,13 +211,17 @@
     document.querySelector('.tabs [data-mode=login]').click();
     show('view-main');
   }));
+  show('view-phone');
 
   if (Ibraya.inApp) {
-    $('hint').textContent = 'Signed up with Google? Tap "Forgot password?" to set a password for your Gmail, then sign in with it.';
+    $('hint').textContent = 'Admin sign-in. Drivers don\'t need a password. (Admin signed up with Google? Tap "Forgot password?" to set a password for your Gmail.)';
   }
 
   // ---------- on load ----------
-  if (Ibraya.urlError) $('error').textContent = Ibraya.urlError.replace(/\+/g, ' ');
+  if (Ibraya.urlError) {
+    show('view-main');
+    $('error').textContent = Ibraya.urlError.replace(/\+/g, ' ');
+  }
 
   sb.auth.onAuthStateChange((event) => {
     if (event === 'PASSWORD_RECOVERY') show('view-new-password');

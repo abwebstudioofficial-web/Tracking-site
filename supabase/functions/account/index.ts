@@ -1,4 +1,7 @@
 // Account actions that need Supabase admin rights:
+//  - phone-login:     drivers sign in with just their phone number (no password, no SMS).
+//                     New numbers are asked for a name and get an account. Admin accounts
+//                     are refused here and must use their password.
 //  - phone-signup:    create a phone + password account (free, no SMS)
 //  - delete-user:     admin removes a user
 //  - reset-password:  admin sets a new password for a user (e.g. a driver who forgot theirs)
@@ -57,6 +60,39 @@ Deno.serve(async (req) => {
   }
 
   switch (body.action) {
+    case 'phone-login': {
+      const phone = normalizePhone(body.phone);
+      if (!phone) return json({ error: 'Please enter a valid phone number' }, 400);
+
+      const { data: profile } = await admin.from('profiles').select('id, role').eq('phone', phone).maybeSingle();
+      let email: string;
+      if (profile) {
+        if (profile.role === 'admin') {
+          return json({ error: 'This is the admin account. Sign in with your password.', needsPassword: true }, 403);
+        }
+        const { data: found, error } = await admin.auth.admin.getUserById(profile.id);
+        if (error || !found.user?.email) return json({ error: 'Could not sign in. Please try again.' }, 400);
+        email = found.user.email;
+      } else {
+        // The very first account becomes the admin, so it must be created with a password.
+        const { count } = await admin.from('profiles').select('id', { count: 'exact', head: true });
+        if (!count) return json({ error: 'Create the admin account first, with a password.', needsPassword: true }, 403);
+        const name = String(body.name ?? '').trim().slice(0, 80);
+        if (!name) return json({ needsName: true });
+        email = `${phone.slice(1)}@${PHONE_DOMAIN}`;
+        const password = crypto.randomUUID() + crypto.randomUUID(); // never used: drivers sign in by phone
+        const { error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name } });
+        if (error && !/already|registered|exists/i.test(error.message)) return json({ error: error.message }, 400);
+      }
+
+      // A one-time sign-in code for that account; nothing is sent by email.
+      const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+      if (linkError || !link?.properties?.hashed_token) {
+        return json({ error: linkError?.message || 'Could not sign in. Please try again.' }, 400);
+      }
+      return json({ tokenHash: link.properties.hashed_token });
+    }
+
     case 'phone-signup': {
       const name = String(body.name ?? '').trim().slice(0, 80);
       const phone = normalizePhone(body.phone);

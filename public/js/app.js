@@ -60,7 +60,7 @@ window.Ibraya = (() => {
       body: JSON.stringify({ action, ...body }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Something went wrong');
+    if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong'), { data });
     return data;
   }
 
