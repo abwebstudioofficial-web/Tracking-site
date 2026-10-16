@@ -23,6 +23,11 @@
     .app-row span { color: var(--muted); font-size: 14px; }
     .dl-steps .sub { display: block; font-size: 13.5px; color: var(--muted); margin-top: 3px; }
     .dl-steps .sub.warn { color: var(--danger); }
+    .brand-pick { margin-top: 18px; }
+    .brand-pick p { margin: 0 0 8px; font-weight: 700; text-align: center; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .chips button { border: 1px solid var(--line); background: var(--panel-2); border-radius: 99px; padding: 7px 12px; cursor: pointer; font-size: 14px; }
+    .chips button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
     .note { font-size: 13px; color: var(--muted); margin-top: 16px; }
     .guide { margin-top: 20px; }
     .guide-title { font-weight: 700; margin: 0 0 8px; text-align: center; }
@@ -46,26 +51,40 @@
       <!-- Video walkthrough of every tap, English + Urdu captions -->
       <div class="guide">
         <p class="guide-title">Watch how to install · انسٹال کرنے کا طریقہ دیکھیں</p>
-        <video src="/video/install-guide.mp4?v=5" poster="/video/install-guide-poster.jpg?v=5" controls playsinline preload="metadata"></video>
+        <video src="/video/install-guide.mp4?v=6" poster="/video/install-guide-poster.jpg?v=6" controls playsinline preload="metadata"></video>
       </div>
 
-      <ol class="dl-steps">
-        <li><span class="n">1</span><div><b>Tap "Download app" above</b><span class="ur">اوپر "ایپ ڈاؤن لوڈ کریں" دبائیں</span></div></li>
-        <li><span class="n">2</span><div><b>When the download finishes, tap "Open"</b>
-          <small class="sub">Nothing happens? Open the <b>Files</b> or <b>Downloads</b> app and tap <b>Ibraya-Tracking.apk</b>.</small>
-          <span class="ur">ڈاؤن لوڈ مکمل ہونے پر "Open" دبائیں۔ کچھ نہ ہو تو <b>Files</b> یا <b>Downloads</b> میں جا کر <b>Ibraya-Tracking.apk</b> دبائیں۔</span></div></li>
-        <li><span class="n">3</span><div><b>If asked, tap "Settings" → turn on "Allow from this source" → go back</b><span class="ur">اگر پوچھا جائے تو "Settings" دبائیں، "Allow from this source" آن کریں، اور واپس آئیں</span></div></li>
-        <li><span class="n">4</span><div><b>Tap "Install"</b>
-          <small class="sub warn">A warning like "Unsafe app" or "Play Protect" may appear. <b>Don't tap the big OK.</b> Tap the small text <b>"Install anyway"</b> (on some phones: "More details" first).</small>
-          <span class="ur">"Install" دبائیں۔ اگر "Unsafe app" یا "Play Protect" کی وارننگ آئے تو بڑا <b>OK نہ دبائیں</b>، نیچے چھوٹا لکھا <b>"Install anyway"</b> دبائیں۔</span></div></li>
-        <li><span class="n">5</span><div><b>Tap "Open", sign in with the number of the SIM in this phone, and follow the steps in the app</b><span class="ur">"Open" دبائیں، اسی فون میں لگی سم کے نمبر سے سائن ان کریں، اور ایپ کے مراحل مکمل کریں</span></div></li>
-      </ol>
+      <div class="brand-pick">
+        <p>Your phone · آپ کا فون</p>
+        <div class="chips" id="brands"></div>
+      </div>
+      <ol class="dl-steps" id="steps"></ol>
 
-      <p class="note">If Chrome says the file "might be harmful", tap "Download anyway". It's safe: it comes from Ibraya Logistics, not the Play Store. For Android phones only.</p>
-      <p class="note" dir="rtl" style="text-align:right">اگر کروم کہے کہ فائل نقصان دہ ہو سکتی ہے تو "Download anyway" دبائیں۔ یہ ایپ ابرایا لاجسٹکس کی طرف سے ہے۔ صرف اینڈرائیڈ فون کے لیے۔</p>
+      <p class="note">Android phones only. The app comes from Ibraya Logistics, not the Play Store, so your phone shows extra warnings. That's normal. · صرف اینڈرائیڈ فون کے لیے۔</p>
     </div>
   </main>
+  <script src="/js/brands.js"></script>
   <script>
+    // Install steps for the chosen phone brand (detected automatically when possible).
+    (() => {
+      const { BRANDS, installSteps, detectThisPhone } = IbrayaBrands;
+      const esc = (t) => String(t).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+      let brand = 'other';
+      function render() {
+        document.getElementById('brands').innerHTML = Object.entries(BRANDS)
+          .map(([k, b]) => `<button type="button" data-brand="${k}" class="${k === brand ? 'on' : ''}">${b.name}</button>`).join('');
+        document.getElementById('steps').innerHTML = installSteps(brand).map((s, i) => `<li><span class="n">${i + 1}</span><div>
+            <b>${esc(s.en)}</b>${s.note ? `<small class="sub${s.warn ? ' warn' : ''}">${esc(s.note[0])}</small>` : ''}
+            <span class="ur">${IbrayaBrands.urduHtml(s.ur)}${s.note ? `<br>${IbrayaBrands.urduHtml(s.note[1])}` : ''}</span></div></li>`).join('');
+      }
+      document.getElementById('brands').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-brand]');
+        if (b) { brand = b.dataset.brand; render(); }
+      });
+      render();
+      detectThisPhone().then((b) => { if (b) { brand = b; render(); } });
+    })();
+
     // Hide the button with a clear message if the app hasn't been published yet.
     fetch('/download/ibraya-tracking.apk', { method: 'HEAD' }).then((r) => {
       if (!r.ok) { document.getElementById('download').hidden = true; document.getElementById('not-ready').hidden = false; }

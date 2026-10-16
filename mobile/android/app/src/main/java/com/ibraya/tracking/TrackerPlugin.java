@@ -221,6 +221,44 @@ public class TrackerPlugin extends Plugin {
         call.resolve(status(context));
     }
 
+    /**
+     * Xiaomi, Oppo/Realme, Vivo, Infinix/Tecno and Huawei have their own "autostart" switch; without it
+     * tracking doesn't restart after a reboot. Opens that brand's screen, or the app's settings.
+     */
+    private static final String[][] AUTOSTART_SCREENS = {
+        { "com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity" },
+        { "com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity" },
+        { "com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity" },
+        { "com.oplus.safecenter", "com.oplus.safecenter.permission.startup.StartupAppListActivity" },
+        { "com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity" },
+        { "com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity" },
+        { "com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity" },
+        { "com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity" },
+        { "com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity" },
+    };
+
+    @PluginMethod
+    public void openAutostartSettings(PluginCall call) {
+        Context context = getContext();
+        boolean opened = false;
+        for (String[] screen : AUTOSTART_SCREENS) {
+            try {
+                Intent intent = new Intent();
+                intent.setClassName(screen[0], screen[1]);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+                opened = true;
+                break;
+            } catch (Exception ignored) {
+                // not this brand
+            }
+        }
+        if (!opened) openAppSettings();
+        JSObject result = status(context);
+        result.put("openedAutostart", opened);
+        call.resolve(result);
+    }
+
     @PluginMethod
     public void openLocationSettings(PluginCall call) {
         Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
