@@ -285,7 +285,6 @@
     if (row) select(row.dataset.id);
   });
 
-  let handingOver = false;
   const passwordRule = (v) => (v.length < 6 ? 'Password must be at least 6 characters' : '');
 
   listEl.addEventListener('change', async (e) => {
@@ -294,38 +293,31 @@
     const u = users.get(id);
     const role = e.target.value;
     const undo = () => { e.target.value = u.role; renderList(); };
+    let password = null;
     if (role === 'admin') {
       const sure = await Ibraya.dialog({
-        title: `Make ${u.name} the admin?`,
-        message: 'There can only be one admin. You will lose admin access and become a Driver.',
+        title: `Make ${u.name} an admin?`,
+        message: 'They will see every truck, the alerts and the history, and can manage drivers. You stay an admin too.',
         okText: 'Make admin',
       });
       if (!sure) return undo();
-      // Drivers sign in with just their phone, but the admin must use a password: set one for them.
-      const password = await Ibraya.dialog({
-        title: `Choose a password for ${u.name}`,
-        message: 'They will sign in as admin with their phone number and this password.',
-        okText: 'Continue',
-        input: { type: 'text', placeholder: 'At least 6 characters', validate: passwordRule },
-      });
-      if (password == null) return undo();
-      try {
-        await Ibraya.account('reset-password', { userId: id, password });
-      } catch (err) {
-        await Ibraya.message('Could not set the password', Ibraya.friendlyError(err));
-        return undo();
+      // Drivers sign in with just their phone, but admins use a password: set one for phone accounts.
+      // (Email / Google accounts keep signing in the way they already do.)
+      if (!u.email) {
+        password = await Ibraya.dialog({
+          title: `Choose a password for ${u.name}`,
+          message: 'They will sign in as admin with their phone number and this password.',
+          okText: 'Continue',
+          input: { type: 'text', placeholder: 'At least 6 characters', validate: passwordRule },
+        });
+        if (password == null) return undo();
+        try {
+          await Ibraya.account('reset-password', { userId: id, password });
+        } catch (err) {
+          await Ibraya.message('Could not set the password', Ibraya.friendlyError(err));
+          return undo();
+        }
       }
-      handingOver = true;
-      const { data, error } = await sb.rpc('admin_set_role', { p_user: id, p_role: role });
-      if (error) {
-        handingOver = false;
-        await Ibraya.message('Could not change the role', Ibraya.friendlyError(error));
-        return undo();
-      }
-      users.set(id, fromRow(data));
-      await Ibraya.message(`${u.name} is now the admin`,
-        `Tell them: tap "Admin? Sign in with password", then use their phone number and the password: ${password}`);
-      return location.replace('/driver'); // you handed admin over
     }
     const { data, error } = await sb.rpc('admin_set_role', { p_user: id, p_role: role });
     if (error) {
@@ -335,6 +327,11 @@
     users.set(id, fromRow(data));
     e.target.blur();
     renderList();
+    if (role === 'admin') {
+      await Ibraya.message(`${u.name} is now an admin`, password
+        ? `Tell them: tap "Admin? Sign in with password", then use their phone number and the password: ${password}`
+        : 'They can sign in the way they already do (email or Google).');
+    }
   });
   listEl.addEventListener('focusout', () => setTimeout(renderList, 0));
 
@@ -762,8 +759,8 @@
   // ---------- data + realtime ----------
   function upsertUser(row) {
     const u = fromRow(row);
-    // Lost admin (handed over): go to the driver page, unless we're still showing the handover message.
-    if (me && u.id === me.id && u.role !== 'admin' && !handingOver) return location.replace('/driver');
+    // Another admin took away my admin role: go to the driver page.
+    if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
     users.set(u.id, u);
     renderMarker(u);
   }
