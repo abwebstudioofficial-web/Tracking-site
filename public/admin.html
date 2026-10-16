@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f1418">
+  <title>Admin · Ibraya Logistics Tracking</title>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="admin">
+    <aside class="sidebar" id="sidebar">
+      <header>
+        <div class="brand">
+          <div class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h13v11H1z"/><path d="M14 8h4l4 4v3h-8z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg></div>
+          <div>Ibraya Logistics<small>Admin · Live tracking</small></div>
+        </div>
+        <div>
+          <button class="btn btn-ghost toggle-list" id="toggle">Drivers</button>
+          <button class="btn btn-ghost" id="logout">Sign out</button>
+        </div>
+      </header>
+      <div class="stats">
+        <div class="stat"><b id="s-total">0</b><span>Drivers</span></div>
+        <div class="stat"><b id="s-online">0</b><span>Online</span></div>
+        <div class="stat"><b id="s-located">0</b><span>On map</span></div>
+      </div>
+      <div class="search"><input id="search" placeholder="Search name or phone"></div>
+      <div class="list" id="list"></div>
+    </aside>
+    <section class="map-wrap"><div id="map"></div></section>
+  </div>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f1418">
+  <title>Sign in · Ibraya Logistics Tracking</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="center-page">
+    <div class="card">
+      <div class="brand">
+        <div class="brand-mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h13v11H1z"/><path d="M14 8h4l4 4v3h-8z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg></div>
+        <div>Ibraya Logistics<small>Tracking</small></div>
+      </div>
+
+      <div class="tabs">
+        <button type="button" data-mode="login" class="active">Sign in</button>
+        <button type="button" data-mode="register">Create account</button>
+      </div>
+
+      <form id="form" novalidate>
+        <label class="field" id="name-field" hidden>
+          <span>Full name</span>
+          <input name="name" autocomplete="name" placeholder="e.g. Muhammad Ali">
+        </label>
+        <label class="field">
+          <span>Phone number</span>
+          <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+92 300 1234567" required>
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input name="password" type="password" autocomplete="current-password" placeholder="At least 6 characters" required>
+        </label>
+        <div class="error" id="error"></div>
+        <button class="btn" id="submit">Sign in</button>
+      </form>
+      <p class="hint" id="hint">Drivers: sign in with the phone number you registered with.</p>
+    </div>
+  </main>
+  <script src="/js/login.js"></script>
+</body>
+</html>

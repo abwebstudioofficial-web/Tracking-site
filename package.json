@@ -1,0 +1,19 @@
+{
+  "name": "ibraya-logistics-tracking",
+  "version": "1.0.0",
+  "description": "Ibraya Logistics Tracking - live location tracking for import/export truck drivers",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "leaflet": "^1.9.4",
+    "socket.io": "^4.8.1"
+  }
+}
