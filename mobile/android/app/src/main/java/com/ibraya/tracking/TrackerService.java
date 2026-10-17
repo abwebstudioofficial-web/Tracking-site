@@ -68,7 +68,10 @@ public class TrackerService extends Service implements LocationListener {
     private static final long SEND_MOVING_MS = 5_000;        // send every 5 s while moving
     private static final long SEND_PARKED_MS = 30_000;       // every 30 s while parked (admin map: offline after 2 min)
     private static final long STOPPED_AFTER_MS = 15_000;     // no new reading for 15 s = not moving
-    private static final float MOVING_MPS = 1.4f;            // ~5 km/h, same as the admin map's "Active"
+    private static final float MOVING_MPS = 1.0f;            // ~3.6 km/h: slower than this counts as stopped
+    private static final float MOVED_METRES = 10f;           // or: moved this far since the last update
+    private static final long KEEP_FAST_MS = 60_000;         // keep sending every 5 s for 1 min after the last movement
+                                                             // (slowing for a turn or a signal doesn't drop to 30 s)
     private static final long NO_FIX_AFTER_MS = 3 * 60_000;  // no position for 3 min = tell the admin "no GPS"
 
     private static volatile boolean running = false;
@@ -81,6 +84,9 @@ public class TrackerService extends Service implements LocationListener {
     private Location lastLocation;
     private long lastFixAt = 0;
     private long lastSentAt = 0;
+    private Location lastSentLocation;
+    private boolean lastSentMoving = false;
+    private long lastMovingAt = 0;
     private Location prevForSpeed;
     private boolean sending = false;
     private String reportedProblem = null; // last problem told to the admin (cleared by the next location)
@@ -260,8 +266,18 @@ public class TrackerService extends Service implements LocationListener {
         lastLocation = location;
         lastFixAt = System.currentTimeMillis();
         float speed = speedOf(location);
-        long interval = speed >= MOVING_MPS ? SEND_MOVING_MS : SEND_PARKED_MS;
-        if (System.currentTimeMillis() - lastSentAt >= interval) send(location, speed);
+        long now = System.currentTimeMillis();
+        float moved = lastSentLocation == null ? Float.MAX_VALUE : location.distanceTo(lastSentLocation);
+        boolean movingNow = speed >= MOVING_MPS
+            || (moved >= MOVED_METRES && moved > (location.hasAccuracy() ? location.getAccuracy() : 0));
+        if (movingNow) lastMovingAt = now;
+        long interval = now - lastMovingAt < KEEP_FAST_MS ? SEND_MOVING_MS : SEND_PARKED_MS;
+        // Just came to a stop after driving: send at once, so the map shows the stop quickly.
+        boolean justStopped = lastSentMoving && !movingNow && now - lastSentAt >= 2_000;
+        if ((justStopped || now - lastSentAt >= interval) && send(location, speed)) {
+            lastSentLocation = location;
+            lastSentMoving = movingNow;
+        }
     }
 
     /** GPS speed in m/s if the phone gives one, else worked out from the previous reading. */
@@ -328,15 +344,16 @@ public class TrackerService extends Service implements LocationListener {
 
     // ---------- sending ----------
 
-    private void send(Location location, float speed) {
-        if (sending) return;
+    /** Sends a position; returns false if nothing was sent (one is already on its way). */
+    private boolean send(Location location, float speed) {
+        if (sending) return false;
         SharedPreferences p = prefs(this);
         String token = p.getString(KEY_TOKEN, null);
         String url = p.getString(KEY_URL, null);
         String apiKey = p.getString(KEY_APIKEY, null);
         if (token == null || url == null || apiKey == null) {
             stopSelf();
-            return;
+            return false;
         }
         sending = true;
         lastSentAt = System.currentTimeMillis();
@@ -367,6 +384,7 @@ public class TrackerService extends Service implements LocationListener {
             final String finalError = error;
             handler.post(() -> afterSend(finalResult, finalError));
         });
+        return true;
     }
 
     private void afterSend(String result, String error) {
