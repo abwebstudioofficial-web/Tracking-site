@@ -26,7 +26,8 @@
   }
 
   function showProfile(p) {
-    if (p.role === 'admin') return location.replace('/admin');
+    if (p.role === 'admin' && !p.tracked) return location.replace('/admin');
+    document.getElementById('to-admin').hidden = p.role !== 'admin';
     roleEl.textContent = Ibraya.ROLES[p.role] || p.role;
     whoEl.textContent = p.name;
   }
