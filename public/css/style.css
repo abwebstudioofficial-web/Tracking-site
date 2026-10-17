@@ -286,6 +286,11 @@ button, input, select { font: inherit; color: inherit; }
 :root[data-theme="dark"] .user .state-none    { background: rgba(255,255,255,.08); color: var(--muted); }
 .truck-label .state-chip { margin-left: 6px; }
 .truck-label.long { top: 54px; }
+.map-notice {
+  position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 900; max-width: 90%;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+  padding: 8px 14px; font-size: 13.5px; box-shadow: 0 4px 14px rgba(0,0,0,.15); text-align: center;
+}
 /* "Following <name>" bar over the map */
 .follow-bar {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 900;

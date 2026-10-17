@@ -123,6 +123,11 @@
       const res = await fetch('https://tiles.openfreemap.org/styles/liberty');
       if (!res.ok) throw new Error(`style ${res.status}`);
       const style = await res.json();
+      // No 3D buildings: on this flat map they only add shading, but they are the heaviest thing
+      // for the graphics card, and weaker PCs/phones lose the map when they appear (zoomed in).
+      // Buildings stay as flat outlines at every zoom instead.
+      style.layers = style.layers.filter((l) => l.type !== 'fill-extrusion');
+      for (const layer of style.layers) if (layer.id === 'building') delete layer.maxzoom;
       for (const layer of style.layers) {
         const field = layer.layout && layer.layout['text-field'];
         const text = JSON.stringify(field || '');
@@ -139,20 +144,44 @@
       }
       const gl = L.maplibreGL({ style }).addTo(map);
       glMap = gl.getMaplibreMap();
-      // Phones can drop the map's graphics when short of memory: rebuild it instead of staying blank.
+      mapNotice('');
+      // The browser can drop the map's graphics (low memory, graphics driver reset). Usually it gives
+      // them back within a moment and the map redraws by itself; if not, rebuild the map.
+      let restoreTimer = null;
       glMap.on('webglcontextlost', () => {
-        setTimeout(() => {
-          map.removeLayer(gl);
+        mapNotice('Map paused by the browser, reloading it…');
+        clearTimeout(restoreTimer);
+        restoreTimer = setTimeout(() => {
+          try { map.removeLayer(gl); } catch { /* already gone */ }
           glMap = null;
           addBaseMap();
-        }, 500);
+        }, 4000);
+      });
+      glMap.on('webglcontextrestored', () => {
+        clearTimeout(restoreTimer);
+        mapNotice('');
       });
       map.attributionControl.addAttribution(
         `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
       );
-    } catch {
+    } catch (err) {
+      // Graphics not ready yet (e.g. just after a reset): try again shortly before giving up.
+      if (baseMapTries++ < 3) {
+        mapNotice('Loading the map…');
+        setTimeout(addBaseMap, 3000);
+        return;
+      }
+      mapNotice(`The detailed map couldn't start (${err && err.message ? err.message : 'unknown error'}). Showing a simpler map.`);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: OSM_ATTR }).addTo(map);
     }
+  }
+  let baseMapTries = 0;
+  // A small message over the map ('' hides it).
+  function mapNotice(text) {
+    const el = document.getElementById('map-notice');
+    if (!el) return;
+    el.textContent = text;
+    el.hidden = !text;
   }
   addBaseMap();
 
