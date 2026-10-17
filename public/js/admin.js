@@ -196,6 +196,7 @@
   addBaseMap();
 
   const markers = new Map();
+  let following = null; // "Follow live": { id, line, points } (see the follow section)
   const fleetLayer = L.layerGroup().addTo(map); // live trucks (hidden while a trip history is shown)
   map.on('dragstart', () => { userMovedMap = true; });
   map.getContainer().addEventListener('wheel', () => { userMovedMap = true; }, { passive: true });
@@ -203,14 +204,12 @@
   // A top-down truck that turns to face the direction it's driving:
   //   cab       = live status colour (green / amber / grey / red)
   //   container = urgency (white normal, yellow urgent, red very urgent), 20ft or 40ft long
-  //   roof stripe = driver type (blue Import, orange Export)
   // Shared gradients are defined once in admin.html.
   const URGENCY = {
     normal: { fill: 'url(#ib-box)', label: 'Normal' },
     urgent: { fill: 'url(#ib-box-y)', label: 'Urgent' },
     very_urgent: { fill: 'url(#ib-box-r)', label: 'Very urgent' },
   };
-  const TYPE_STRIPE = { import_driver: '#2563eb', export_driver: '#f97316' };
   function truckSvg(u) {
     const long = u.truckSize === '40ft';
     const box = long ? 49 : 31; // container length
@@ -218,13 +217,11 @@
     const fill = (URGENCY[u.urgency] || URGENCY.normal).fill;
     const ribs = Array.from({ length: Math.floor((box - 6) / 5) }, (_, i) => `M6 ${22 + i * 5}h16`).join('');
     const wheels = (long ? [21, 40, 58] : [21, 38]).map((y) => `<rect x="1" y="${y}" width="2" height="5.5" rx=".8" fill="#2b3640"/><rect x="25" y="${y}" width="2" height="5.5" rx=".8" fill="#2b3640"/>`).join('');
-    const stripe = TYPE_STRIPE[u.role] ? `<rect x="11.5" y="18.5" width="5" height="${box - 3}" rx="1.5" fill="${TYPE_STRIPE[u.role]}" opacity=".9"/>` : '';
     return `
     <svg class="truck-svg" viewBox="0 0 28 ${h}" width="24" height="${Math.round(h * 24 / 28)}" aria-hidden="true">
       ${wheels}
       <rect x="2.5" y="17" width="23" height="${box}" rx="2.5" fill="${fill}" stroke="#7d8a95" stroke-width=".8"/>
       <path d="${ribs}" stroke="#000" stroke-width=".5" opacity=".18"/>
-      ${stripe}
       <rect x="4.5" y="13.5" width="19" height="4.5" rx="1" fill="#3a4651"/>
       <rect class="cab" x="4" y="1.5" width="20" height="14" rx="5"/>
       <rect x="4" y="1.5" width="20" height="14" rx="5" fill="url(#ib-shade)"/>
@@ -235,13 +232,9 @@
     </svg>`;
   }
 
-  // Tags next to the name: driver type and urgency.
-  const TYPE_TAG = { import_driver: ['Import', 'tag-import'], export_driver: ['Export', 'tag-export'] };
-  function nameTags(u) {
-    const t = TYPE_TAG[u.role];
-    const urg = u.urgency && u.urgency !== 'normal' ? `<span class="tag tag-${u.urgency}">${URGENCY[u.urgency].label}</span>` : '';
-    return `${t ? `<span class="tag ${t[1]}">${t[0]}</span>` : ''}${urg}`;
-  }
+  // Tag next to the name for urgent trucks.
+  const nameTags = (u) => (u.urgency && u.urgency !== 'normal'
+    ? `<span class="tag tag-${u.urgency}">${URGENCY[u.urgency].label}</span>` : '');
 
   // Tracked admins show as a car (same style: body in the status colour, turns to its heading).
   const CAR_SVG = `
@@ -302,8 +295,9 @@
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}
       ${u.battery != null ? `<br>Battery: ${u.battery}%` : ''}<br>
       ${nearbyHtml(u)}
+      <button class="link" data-follow="${u.id}">${following && following.id === u.id ? 'Stop following' : 'Follow live'}</button> ·
       <button class="link" data-history="${u.id}">Show history</button> ·
-      <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
+      <button class="link" data-gmaps="${u.id}">Route in Google Maps</button>`;
   }
 
   // Trucks move continuously instead of jumping: each new position is reached at a steady speed
@@ -884,6 +878,7 @@
   function openHistory(id, day) {
     const u = users.get(id);
     if (!u) return;
+    stopFollow();
     map.closePopup();
     history = { id, day: dayStart(day), points: [], entries: [] };
     $('history-name').textContent = u.name;
@@ -982,6 +977,86 @@
     }
   }
 
+  // ---------- follow live / route in Google Maps ----------
+  // Follow live: keep the map on one truck and draw the road it drove in the last 2 hours,
+  // growing as new positions arrive, so you can see where it's heading.
+  const FOLLOW_TRAIL_MS = 2 * 3600 * 1000;
+  async function recentRoute(id, ms) {
+    const { data } = await sb.rpc('get_driver_history', {
+      p_user: id, p_from: new Date(Date.now() - ms).toISOString(), p_to: new Date(Date.now() + 60000).toISOString(),
+    });
+    return ((data && data.points) || []).map(([, lat, lng]) => [lat, lng]);
+  }
+  function refreshPopup(id) {
+    const u = users.get(id);
+    const m = markers.get(id);
+    if (u && m && u.location) m.setPopupContent(popupHtml(u));
+  }
+  async function startFollow(id) {
+    const u = users.get(id);
+    if (!u || !u.location) return;
+    stopFollow();
+    following = { id, points: [], line: L.polyline([], { color: '#2563eb', weight: 5, opacity: 0.7 }).addTo(map) };
+    userMovedMap = true;
+    map.setView([u.location.lat, u.location.lng], Math.max(map.getZoom(), 15));
+    document.getElementById('follow-name').textContent = u.name;
+    document.getElementById('follow-bar').hidden = false;
+    refreshPopup(id);
+    let points = [];
+    try { points = await recentRoute(id, FOLLOW_TRAIL_MS); } catch { /* just follow from now */ }
+    if (!following || following.id !== id) return;
+    following.points = points;
+    followUpdate(users.get(id));
+  }
+  function followUpdate(u) {
+    if (!following || !u || u.id !== following.id || !u.location) return;
+    const p = [u.location.lat, u.location.lng];
+    const last = following.points[following.points.length - 1];
+    if (!last || last[0] !== p[0] || last[1] !== p[1]) following.points.push(p);
+    following.line.setLatLngs(following.points);
+    map.panTo(p, { animate: true, duration: 2, easeLinearity: 1 });
+  }
+  function stopFollow() {
+    if (!following) return;
+    const id = following.id;
+    following.line.remove();
+    following = null;
+    document.getElementById('follow-bar').hidden = true;
+    refreshPopup(id);
+  }
+  document.getElementById('follow-stop').addEventListener('click', stopFollow);
+
+  // Route in Google Maps: the last hour's route (on the roads) up to where the truck is now.
+  // Google Maps can't receive our live positions, so this shows the route at the moment you tap.
+  async function openRouteInGoogleMaps(id) {
+    const u = users.get(id);
+    if (!u || !u.location) return;
+    const win = window.open('about:blank', '_blank'); // open now, or popup blockers stop it
+    let points = [];
+    try { points = await recentRoute(id, 3600 * 1000); } catch { /* current position only */ }
+    points.push([u.location.lat, u.location.lng]);
+    const n = Math.min(10, points.length); // Google Maps links take about 10 stops
+    const pick = Array.from({ length: n }, (_, i) => points[Math.round((i * (points.length - 1)) / Math.max(n - 1, 1))]);
+    const url = pick.length > 1
+      ? `https://www.google.com/maps/dir/${pick.map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`).join('/')}`
+      : `https://www.google.com/maps?q=${u.location.lat},${u.location.lng}`;
+    if (win) win.location.href = url;
+    else location.href = url;
+  }
+
+  document.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-follow]');
+    const g = e.target.closest('[data-gmaps]');
+    if (f) {
+      e.preventDefault();
+      if (following && following.id === f.dataset.follow) stopFollow();
+      else startFollow(f.dataset.follow);
+    } else if (g) {
+      e.preventDefault();
+      openRouteInGoogleMaps(g.dataset.gmaps);
+    }
+  });
+
   searchEl.addEventListener('input', renderList);
   document.getElementById('toggle').addEventListener('click', () => sidebar.classList.toggle('open'));
   document.getElementById('logout').addEventListener('click', () => Ibraya.signOut());
@@ -999,9 +1074,11 @@
       && prev.location.lat === u.location.lat && prev.location.lng === u.location.lng) u.inside = prev.inside;
     users.set(u.id, u);
     renderMarker(u);
+    followUpdate(u);
   }
 
   function removeUser(id) {
+    if (following && following.id === id) stopFollow();
     users.delete(id);
     const m = markers.get(id);
     if (m) { m.remove(); markers.delete(id); }

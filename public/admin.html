@@ -88,7 +88,10 @@
         <div class="list" id="history-list"></div>
       </div>
     </aside>
-    <section class="map-wrap"><div id="map"></div></section>
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="follow-bar" id="follow-bar" hidden><span>📍 Following <b id="follow-name"></b> live</span><button class="btn btn-ghost" id="follow-stop">Stop</button></div>
+    </section>
   </div>
   <script src="/vendor/leaflet/leaflet.js"></script>
   <script src="/vendor/maplibre/maplibre-gl.js"></script>
