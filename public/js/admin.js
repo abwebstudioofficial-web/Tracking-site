@@ -190,6 +190,25 @@
       <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   }
 
+  // Move a truck smoothly to its new position (over about a second) instead of jumping.
+  // Big jumps (e.g. after being offline) and hidden tabs move straight there.
+  const GLIDE_MS = 1000;
+  function glideTo(m, latlng) {
+    const from = m.getLatLng();
+    const to = L.latLng(latlng);
+    cancelAnimationFrame(m._glide);
+    if (from.equals(to)) return;
+    if (document.hidden || map.distance(from, to) > 2000) return m.setLatLng(to);
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / GLIDE_MS);
+      const k = t * (2 - t); // ease out
+      m.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]);
+      if (t < 1) m._glide = requestAnimationFrame(step);
+    };
+    m._glide = requestAnimationFrame(step);
+  }
+
   function renderMarker(u) {
     let m = markers.get(u.id);
     if (!u.location || !isTracked(u)) {
@@ -203,7 +222,7 @@
       markers.set(u.id, m);
       if (!userMovedMap) fitAll();
     } else {
-      m.setLatLng(latlng);
+      glideTo(m, latlng);
       m.setIcon(truckIcon(u));
       m.setPopupContent(popupHtml(u));
     }

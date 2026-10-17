@@ -64,8 +64,8 @@ public class TrackerService extends Service implements LocationListener {
     private static final int NOTIFICATION_ID = 1;
     private static final int NOTIFICATION_SIGNED_OUT = 2;
 
-    private static final long GPS_INTERVAL_MS = 5_000;       // ask the GPS for a reading every 5 s
-    private static final long SEND_MOVING_MS = 10_000;       // send every 10 s while moving
+    private static final long GPS_INTERVAL_MS = 2_000;       // ask the GPS for a reading every 2 s
+    private static final long SEND_MOVING_MS = 5_000;        // send every 5 s while moving
     private static final long SEND_PARKED_MS = 30_000;       // every 30 s while parked (admin map: offline after 2 min)
     private static final long STOPPED_AFTER_MS = 15_000;     // no new reading for 15 s = not moving
     private static final float MOVING_MPS = 1.4f;            // ~5 km/h, same as the admin map's "Active"
