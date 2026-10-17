@@ -113,50 +113,7 @@
         ['var', 'en']]];
   }
 
-  // ---------- inside a building? ----------
-  // Uses the building outlines of the map that are already loaded (when zoomed in to street level,
-  // about zoom 14+). Returns { name } when the point is inside a building, false when it isn't,
-  // and null when it can't tell (zoomed out, or the plain fallback map).
-  let glMap = null;
-  const insideRing = (lng, lat, ring) => {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i];
-      const [xj, yj] = ring[j];
-      if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
-    }
-    return inside;
-  };
-  const insidePolygon = (lng, lat, rings) => insideRing(lng, lat, rings[0])
-    && !rings.slice(1).some((hole) => insideRing(lng, lat, hole));
-  function containsPoint(geometry, lng, lat) {
-    if (geometry.type === 'Polygon') return insidePolygon(lng, lat, geometry.coordinates);
-    if (geometry.type === 'MultiPolygon') return geometry.coordinates.some((poly) => insidePolygon(lng, lat, poly));
-    return false;
-  }
-  function vectorSource() {
-    const sources = glMap.getStyle().sources;
-    return Object.keys(sources).find((k) => sources[k].type === 'vector');
-  }
-  function buildingAt(lat, lng) {
-    try {
-      if (!glMap || !glMap.isStyleLoaded() || glMap.getZoom() < 14) return null;
-      const source = vectorSource();
-      if (!source) return null;
-      const buildings = glMap.querySourceFeatures(source, { sourceLayer: 'building' });
-      if (!buildings.length) return null;
-      const building = buildings.find((b) => containsPoint(b.geometry, lng, lat));
-      if (!building) return false;
-      // A named place (shop, plaza, office...) inside that building, if the map has one.
-      const poi = glMap.querySourceFeatures(source, { sourceLayer: 'poi' })
-        .find((f) => f.properties.name && f.geometry.type === 'Point'
-          && containsPoint(building.geometry, f.geometry.coordinates[0], f.geometry.coordinates[1]));
-      const p = (poi || building).properties || {};
-      return { name: p['name:en'] || p.name_en || p.name || '' };
-    } catch {
-      return null;
-    }
-  }
+  let glMap = null; // the MapLibre map inside the Leaflet layer
 
   async function addBaseMap() {
     try {
@@ -189,12 +146,6 @@
           glMap = null;
           addBaseMap();
         }, 500);
-      });
-      // Building outlines arrive when zoomed in: re-check who is inside a building.
-      let idleTimer = null;
-      glMap.on('idle', () => {
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => users.forEach(renderMarker), 300);
       });
       map.attributionControl.addAttribution(
         `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
@@ -263,17 +214,15 @@
 
   function truckIcon(u) {
     const heading = u.location && u.location.heading != null ? u.location.heading : 0;
-    const inside = u.inside ? ' inside' : '';
     return L.divIcon({
       className: '',
       iconSize: [44, 44],
       iconAnchor: [22, 22],
       popupAnchor: [0, -22],
       html: `
-        <div class="truck ${statusOf(u)}${inside}">
+        <div class="truck ${statusOf(u)}">
           <div class="pulse"></div>
           <div class="truck-rot" style="transform:rotate(${heading}deg)">${u.role === 'admin' ? CAR_SVG : truckSvg(u)}</div>
-          ${u.inside ? '<div class="inside-badge" title="Inside a building">🏢</div>' : ''}
           <div class="truck-label${u.truckSize === '40ft' && u.role !== 'admin' ? ' long' : ''}">${esc(u.name)}${nameTags(u)}${chip(u)}</div>
         </div>`,
     });
@@ -301,7 +250,6 @@
       ${esc(ROLES[u.role] || u.role)}${u.role !== 'admin' ? ` · ${u.truckSize} · ${URGENCY[u.urgency].label}` : ''} · ${esc(u.phone)}<br>
       ${chip(u)} · updated ${ago(u.location.at)}
       ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
-      ${u.inside ? `<br>🏢 <b>Inside a building</b>${u.inside.name ? `: ${esc(u.inside.name)}` : ''}` : ''}
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}
       ${u.battery != null ? `<br>Battery: ${u.battery}%` : ''}<br>
       ${nearbyHtml(u)}
@@ -344,9 +292,6 @@
       return;
     }
     const latlng = [u.location.lat, u.location.lng];
-    // Inside a building? Only known when zoomed in near it; otherwise keep the last answer.
-    const inside = buildingAt(u.location.lat, u.location.lng);
-    if (inside !== null) u.inside = inside || null;
     if (!m) {
       m = L.marker(latlng, { icon: truckIcon(u) }).addTo(fleetLayer).bindPopup(popupHtml(u));
       m.on('click', () => select(u.id, false));
@@ -1078,10 +1023,6 @@
     if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
     // The main admin switched my tracking on or off.
     if (me && u.id === me.id && !!row.tracked !== !!me.tracked) { me = row; syncMyTracking(); }
-    // Keep "inside a building" while the truck hasn't moved (it's only re-checked when zoomed in).
-    const prev = users.get(u.id);
-    if (prev && prev.inside && prev.location && u.location
-      && prev.location.lat === u.location.lat && prev.location.lng === u.location.lng) u.inside = prev.inside;
     users.set(u.id, u);
     renderMarker(u);
     followUpdate(u);

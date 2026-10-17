@@ -266,13 +266,6 @@ button, input, select { font: inherit; color: inherit; }
 .truck.alert { --cab: #d93838; }
 .truck.idle .pulse, .truck.offline .pulse, .truck.none .pulse, .truck.alert .pulse { display: none; }
 .truck.offline .truck-svg, .truck.none .truck-svg { opacity: .75; }
-/* inside a building: see-through, with a building badge */
-.truck.inside .truck-svg { opacity: .5; }
-.truck.inside .pulse { display: none; }
-.inside-badge {
-  position: absolute; right: -4px; top: -4px; width: 20px; height: 20px; border-radius: 50%;
-  background: #fff; display: grid; place-items: center; font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.35);
-}
 .truck-label {
   position: absolute; top: 46px; left: 50%; transform: translateX(-50%); white-space: nowrap;
   background: #fff; color: #111; font: 600 12px system-ui, sans-serif; padding: 2px 8px;
