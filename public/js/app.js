@@ -124,7 +124,9 @@ window.Ibraya = (() => {
       return null;
     }
     const home = homeFor(profile);
-    if (home !== page) {
+    // A tracked admin may also open the driver page, to finish the phone's tracking setup.
+    const trackedAdminSetup = page === '/driver' && profile.role === 'admin' && profile.tracked;
+    if (home !== page && !trackedAdminSetup) {
       location.replace(home);
       return null;
     }

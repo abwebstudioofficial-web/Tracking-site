@@ -32,6 +32,8 @@
     phone: r.phone || '',
     email: r.email,
     role: r.role,
+    owner: !!r.is_owner,                 // the main admin: never tracked, can't be changed by other admins
+    tracked: !!r.tracked,                // admins only: location shared (switched by the main admin)
     problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / battery_dead / signed_out
     battery: r.battery ?? null,          // phone battery %, sent by the app
     sim: r.sim_check || null,            // verified / unverified / mismatch (checked by the app)
@@ -43,6 +45,8 @@
       at: Date.parse(r.location_at),
     },
   });
+  // Drivers are always tracked; admins only when the main admin switched it on.
+  const isTracked = (u) => u.role !== 'admin' || u.tracked;
   const kmh = (u) => (u.location && u.location.speed != null ? Math.round(u.location.speed * 3.6) : null);
   const speedText = (v) => (v === 0 ? 'Stopped' : `${v} km/h`);
 
@@ -162,7 +166,7 @@
   function nearbyHtml(u) {
     const here = [u.location.lat, u.location.lng];
     const near = [...users.values()]
-      .filter((o) => o.id !== u.id && o.role !== 'admin' && o.location)
+      .filter((o) => o.id !== u.id && isTracked(o) && o.location)
       .map((o) => ({ o, m: map.distance(here, [o.location.lat, o.location.lng]) }))
       .filter((x) => x.m <= NEARBY_KM * 1000)
       .sort((a, b) => a.m - b.m);
@@ -188,7 +192,7 @@
 
   function renderMarker(u) {
     let m = markers.get(u.id);
-    if (!u.location || u.role === 'admin') {
+    if (!u.location || !isTracked(u)) {
       if (m) { m.remove(); markers.delete(u.id); }
       return;
     }
@@ -229,7 +233,7 @@
     // Don't rebuild the list while the admin has a role dropdown open.
     if (document.activeElement && document.activeElement.tagName === 'SELECT' && listEl.contains(document.activeElement)) return;
     const q = searchEl.value.trim().toLowerCase();
-    const drivers = [...users.values()].filter((u) => u.role !== 'admin');
+    const drivers = [...users.values()].filter(isTracked);
     document.getElementById('s-total').textContent = drivers.length;
     document.getElementById('s-active').textContent = drivers.filter((u) => statusOf(u) === 'active').length;
     document.getElementById('s-idle').textContent = drivers.filter((u) => statusOf(u) === 'idle').length;
@@ -243,11 +247,15 @@
     listEl.innerHTML = rows.map((u) => {
       const self = me && u.id === me.id;
       const st = statusOf(u);
-      const state = u.role === 'admin' ? '' : { active: 'on', idle: 'warn', alert: 'bad' }[st] || '';
+      const state = !isTracked(u) ? '' : { active: 'on', idle: 'warn', alert: 'bad' }[st] || '';
       const contact = esc(u.phone || u.email || 'no phone yet');
-      const meta = u.role === 'admin'
-        ? `${contact} · not tracked`
-        : `${contact} · ${chip(u)}${st === 'offline' || st === 'alert' ? ` seen ${ago(u.location.at)}` : ''}${simBadge(u)}`;
+      const meta = !isTracked(u)
+        ? `${contact} · ${u.owner ? 'main admin · ' : ''}not tracked`
+        : `${contact} · ${chip(u)}${(st === 'offline' || st === 'alert') && u.location ? ` seen ${ago(u.location.at)}` : ''}${simBadge(u)}`;
+      // The main admin can't be changed by other admins; only the main admin switches tracking.
+      const locked = u.owner;
+      const trackBtn = me && me.is_owner && u.role === 'admin' && !u.owner
+        ? `<button class="del track ${u.tracked ? 'on' : ''}" data-track="${u.id}" title="Share this admin's location">📍 ${u.tracked ? 'Tracking on' : 'Track'}</button>` : '';
       const options = Object.entries(ROLES)
         .map(([k, v]) => `<option value="${k}" ${k === u.role ? 'selected' : ''}>${v}</option>`)
         .join('');
@@ -256,9 +264,10 @@
           <span class="dot ${state}"></span>
           <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}</div>
           <div class="meta">${meta}</div>
-          ${self ? '' : `<div class="controls">
+          ${self || locked ? '' : `<div class="controls">
             <select data-role="${u.id}" aria-label="Role for ${esc(u.name)}">${options}</select>
-            ${u.role === 'admin' ? '' : `<button class="del" data-history="${u.id}" title="Trip history">History</button>`}
+            ${trackBtn}
+            ${!isTracked(u) ? '' : `<button class="del" data-history="${u.id}" title="Trip history">History</button>`}
             ${u.email ? `<button class="del" data-reset="${u.id}" title="Set a new password">🔑</button>` : ''}
             <button class="del" data-del="${u.id}" title="Remove user">✕</button>
           </div>`}
@@ -426,7 +435,7 @@
     const now = Date.now();
     const list = [];
     users.forEach((u) => {
-      if (u.role === 'admin' || !u.location) return;
+      if (!isTracked(u) || !u.location) return;
       if (u.sim === 'mismatch') list.push({ u, kind: 'wrong_sim', since: u.simAt || now });
       if (u.problem && (u.problem !== 'no_gps' || now - u.problemAt >= NO_GPS_ALERT_MS)) {
         list.push({ u, kind: u.problem, since: u.problemAt || u.location.at, battery: u.battery });
@@ -752,6 +761,60 @@
     sidebar.classList.remove('open');
   });
 
+  // Main admin: share another admin's location, or stop.
+  listEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-track]');
+    if (!btn) return;
+    const u = users.get(btn.dataset.track);
+    const on = !u.tracked;
+    const sure = await Ibraya.dialog({
+      title: on ? `Track ${u.name}?` : `Stop tracking ${u.name}?`,
+      message: on
+        ? 'Their phone will share its location like a driver\'s: map, history and alerts. They need the Ibraya app on their phone, signed in.'
+        : 'Their location will no longer be shared. Their past history is kept.',
+      okText: on ? 'Track' : 'Stop tracking',
+    });
+    if (!sure) return;
+    const { data, error } = await sb.rpc('admin_set_tracked', { p_user: u.id, p_tracked: on });
+    if (error) return Ibraya.message('Could not change tracking', Ibraya.friendlyError(error));
+    upsertUser(data);
+    renderList();
+  });
+
+  // This admin's own phone: share its location only if the main admin switched tracking on.
+  async function syncMyTracking() {
+    const banner = document.getElementById('my-tracking');
+    if (!me.tracked) {
+      banner.hidden = true;
+      if (Ibraya.tracker) {
+        sb.rpc('unregister_my_tracker_devices').then(() => {}, () => {});
+        Ibraya.tracker.stop().catch(() => {});
+      }
+      return;
+    }
+    banner.hidden = false;
+    if (!Ibraya.tracker) {
+      banner.removeAttribute('href');
+      banner.textContent = '📍 Your location is shared with the main admin. Open the Ibraya app on your phone and sign in there.';
+      return;
+    }
+    try {
+      let st = await Ibraya.tracker.getStatus();
+      if (!st.hasToken) {
+        const { data: token, error } = await sb.rpc('register_tracker_device', { p_device_name: st.device || null });
+        if (error) throw error;
+        st = await Ibraya.tracker.start({ token, supabaseUrl: IBRAYA.supabaseUrl, apiKey: IBRAYA.supabaseKey });
+      }
+      const ready = st.location && st.background && st.gpsOn;
+      banner.href = '/driver';
+      banner.textContent = ready
+        ? '📍 Your location is shared with the main admin (24/7).'
+        : '📍 Your location must be shared. Tap here to finish the setup →';
+    } catch (err) {
+      banner.textContent = `📍 Location sharing: ${Ibraya.friendlyError(err)}`;
+    }
+  }
+
   searchEl.addEventListener('input', renderList);
   document.getElementById('toggle').addEventListener('click', () => sidebar.classList.toggle('open'));
   document.getElementById('logout').addEventListener('click', () => Ibraya.signOut());
@@ -761,6 +824,8 @@
     const u = fromRow(row);
     // Another admin took away my admin role: go to the driver page.
     if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
+    // The main admin switched my tracking on or off.
+    if (me && u.id === me.id && !!row.tracked !== !!me.tracked) { me = row; syncMyTracking(); }
     users.set(u.id, u);
     renderMarker(u);
   }
@@ -784,11 +849,7 @@
 
   me = await Ibraya.guard('/admin');
   if (!me) return;
-  // The admin isn't tracked: if this is the Ibraya app on the admin's phone, stop its tracking.
-  if (Ibraya.tracker) {
-    sb.rpc('unregister_my_tracker_devices').then(() => {}, () => {});
-    Ibraya.tracker.stop().catch(() => {});
-  }
+  syncMyTracking();
   sb.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') Ibraya.toLogin();
   });

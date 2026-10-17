@@ -286,6 +286,9 @@ button, input, select { font: inherit; color: inherit; }
 .truck-label .state-chip { margin-left: 6px; }
 .state-alert   { background: #fde2e2; color: #b42323; }
 :root[data-theme="dark"] .user .state-alert { background: rgba(255,93,93,.16); color: #ff8080; }
+.my-tracking { display: block; margin: 10px 16px 0; text-decoration: none; color: var(--text); font-size: 13.5px; }
+a.my-tracking[href] { border-color: var(--accent-text); }
+.user .del.track.on { border-color: var(--online); color: var(--online); }
 .sim-badge { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 99px; white-space: nowrap; }
 .sim-ok { background: #dcf5e6; color: #11743b; }
 .sim-unknown { background: #e9edf0; color: #5d6973; }
