@@ -190,21 +190,29 @@
       <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   }
 
-  // Move a truck smoothly to its new position (over about a second) instead of jumping.
+  // Trucks move continuously instead of jumping: each new position is reached at a steady speed
+  // over about the time until the next update is expected (the gap between the last two updates).
+  // A new position arriving mid-way continues from where the truck is on screen, so it never pauses
+  // between updates and never goes past the last real position (it trails it by one update).
   // Big jumps (e.g. after being offline) and hidden tabs move straight there.
-  const GLIDE_MS = 1000;
+  const GLIDE_MIN_MS = 1000;
+  const GLIDE_MAX_MS = 6000;
   function glideTo(m, latlng) {
-    const from = m.getLatLng();
     const to = L.latLng(latlng);
+    // Same position again (a parked truck's check-in, or the regular redraw): keep gliding as is.
+    if (m._target ? m._target.equals(to) : m.getLatLng().equals(to)) return;
+    m._target = to;
+    const now = performance.now();
+    const gap = m._lastFixAt ? now - m._lastFixAt : 5000;
+    m._lastFixAt = now;
+    const from = m.getLatLng();
     cancelAnimationFrame(m._glide);
-    if (from.equals(to)) return;
     if (document.hidden || map.distance(from, to) > 2000) return m.setLatLng(to);
-    const start = performance.now();
-    const step = (now) => {
-      const t = Math.min(1, (now - start) / GLIDE_MS);
-      const k = t * (2 - t); // ease out
+    const duration = Math.min(GLIDE_MAX_MS, Math.max(GLIDE_MIN_MS, gap));
+    const step = (t) => {
+      const k = Math.min(1, (t - now) / duration); // steady speed: no speeding up or slowing down
       m.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]);
-      if (t < 1) m._glide = requestAnimationFrame(step);
+      if (k < 1) m._glide = requestAnimationFrame(step);
     };
     m._glide = requestAnimationFrame(step);
   }
