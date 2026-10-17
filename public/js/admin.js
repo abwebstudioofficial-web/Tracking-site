@@ -215,6 +215,21 @@
       <rect x="6" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/><rect x="18.5" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/>
     </svg>`;
 
+  // Tracked admins show as a car (same style: body in the status colour, turns to its heading).
+  const CAR_SVG = `
+    <svg class="truck-svg car-svg" viewBox="0 0 26 44" width="22" height="38" aria-hidden="true">
+      <rect x="1" y="8" width="2.6" height="7" rx="1.2" fill="#22303b"/><rect x="22.4" y="8" width="2.6" height="7" rx="1.2" fill="#22303b"/>
+      <rect x="1" y="29" width="2.6" height="7" rx="1.2" fill="#22303b"/><rect x="22.4" y="29" width="2.6" height="7" rx="1.2" fill="#22303b"/>
+      <path class="cab" d="M13 1.5c5.2 0 9.5 2.6 9.5 7.5v27c0 4.4-3.4 6.5-9.5 6.5S3.5 40.4 3.5 36V9C3.5 4.1 7.8 1.5 13 1.5z"/>
+      <path d="M13 1.5c5.2 0 9.5 2.6 9.5 7.5v27c0 4.4-3.4 6.5-9.5 6.5S3.5 40.4 3.5 36V9C3.5 4.1 7.8 1.5 13 1.5z" fill="url(#ib-shade)"/>
+      <path d="M6.2 13.5c1.8-1.6 4.2-2.3 6.8-2.3s5 .7 6.8 2.3l-1.4 5.2H7.6z" fill="#1c2833"/>
+      <rect x="7.4" y="19.5" width="11.2" height="10" rx="2" fill="#000" opacity=".12"/>
+      <path d="M7.8 30.5h10.4l1.3 4.2c-1.7 1.3-4 1.9-6.5 1.9s-4.8-.6-6.5-1.9z" fill="#1c2833"/>
+      <path d="M8.6 13.8h3.4l-1.6 3.6H8z" fill="#fff" opacity=".35"/>
+      <rect x="5.2" y="2.6" width="3.6" height="1.6" rx=".8" fill="#ffe08a"/><rect x="17.2" y="2.6" width="3.6" height="1.6" rx=".8" fill="#ffe08a"/>
+      <rect x="1.4" y="12.5" width="2.4" height="1.8" rx=".8" fill="#22303b"/><rect x="22.2" y="12.5" width="2.4" height="1.8" rx=".8" fill="#22303b"/>
+    </svg>`;
+
   function truckIcon(u) {
     const heading = u.location && u.location.heading != null ? u.location.heading : 0;
     const inside = u.inside ? ' inside' : '';
@@ -226,7 +241,7 @@
       html: `
         <div class="truck ${statusOf(u)}${inside}">
           <div class="pulse"></div>
-          <div class="truck-rot" style="transform:rotate(${heading}deg)">${TRUCK_SVG}</div>
+          <div class="truck-rot" style="transform:rotate(${heading}deg)">${u.role === 'admin' ? CAR_SVG : TRUCK_SVG}</div>
           ${u.inside ? '<div class="inside-badge" title="Inside a building">🏢</div>' : ''}
           <div class="truck-label">${esc(u.name)}${chip(u)}</div>
         </div>`,
