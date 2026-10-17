@@ -94,9 +94,7 @@
   const distance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`);
 
   // ---------- map ----------
-  // Zoom is capped at street level: further in, the map has nothing more to draw and goes blank
-  // (and past MapLibre's own limit it falls out of step with Leaflet and stays blank).
-  const map = L.map('map', { zoomControl: false, minZoom: 3, maxZoom: 19 }).setView([30.3753, 69.3451], 5);
+  const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
   // Base map: OpenFreeMap (free, no API key), drawn in the browser by MapLibre so we can
   // choose the labels: English name on top, Urdu (or other local script) underneath.
@@ -113,8 +111,6 @@
         ['var', 'en']]];
   }
 
-  let glMap = null; // the MapLibre map inside the Leaflet layer
-
   async function addBaseMap() {
     try {
       if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre not loaded');
@@ -123,65 +119,20 @@
       const res = await fetch('https://tiles.openfreemap.org/styles/liberty');
       if (!res.ok) throw new Error(`style ${res.status}`);
       const style = await res.json();
-      // No 3D buildings: on this flat map they only add shading, but they are the heaviest thing
-      // for the graphics card, and weaker PCs/phones lose the map when they appear (zoomed in).
-      // Buildings stay as flat outlines at every zoom instead.
-      style.layers = style.layers.filter((l) => l.type !== 'fill-extrusion');
-      for (const layer of style.layers) if (layer.id === 'building') delete layer.maxzoom;
       for (const layer of style.layers) {
         const field = layer.layout && layer.layout['text-field'];
         const text = JSON.stringify(field || '');
         if (!text.includes('name')) continue; // leave road numbers etc. alone
-        if (layer['source-layer'] === 'poi') {
-          // Shops, buildings, places: one line, close under their icon, so the name stays on its building.
-          layer.layout['text-field'] = bilingualLabel(' · ');
-          layer.layout['text-offset'] = [0, 0.35];
-          layer.layout['text-max-width'] = 9;
-          continue;
-        }
         // Point labels (cities) get two lines; labels along roads/rivers stay on one line.
         layer.layout['text-field'] = bilingualLabel(text.includes('\\n') ? '\n' : ' ');
       }
-      const gl = L.maplibreGL({ style }).addTo(map);
-      glMap = gl.getMaplibreMap();
-      mapNotice('');
-      // The browser can drop the map's graphics (low memory, graphics driver reset). Usually it gives
-      // them back within a moment and the map redraws by itself; if not, rebuild the map.
-      let restoreTimer = null;
-      glMap.on('webglcontextlost', () => {
-        mapNotice('Map paused by the browser, reloading it…');
-        clearTimeout(restoreTimer);
-        restoreTimer = setTimeout(() => {
-          try { map.removeLayer(gl); } catch { /* already gone */ }
-          glMap = null;
-          addBaseMap();
-        }, 4000);
-      });
-      glMap.on('webglcontextrestored', () => {
-        clearTimeout(restoreTimer);
-        mapNotice('');
-      });
+      L.maplibreGL({ style }).addTo(map);
       map.attributionControl.addAttribution(
         `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
       );
-    } catch (err) {
-      // Graphics not ready yet (e.g. just after a reset): try again shortly before giving up.
-      if (baseMapTries++ < 3) {
-        mapNotice('Loading the map…');
-        setTimeout(addBaseMap, 3000);
-        return;
-      }
-      mapNotice(`The detailed map couldn't start (${err && err.message ? err.message : 'unknown error'}). Showing a simpler map.`);
+    } catch {
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: OSM_ATTR }).addTo(map);
     }
-  }
-  let baseMapTries = 0;
-  // A small message over the map ('' hides it).
-  function mapNotice(text) {
-    const el = document.getElementById('map-notice');
-    if (!el) return;
-    el.textContent = text;
-    el.hidden = !text;
   }
   addBaseMap();
 
