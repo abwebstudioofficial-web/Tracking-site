@@ -32,6 +32,8 @@
     phone: r.phone || '',
     email: r.email,
     role: r.role,
+    truckSize: r.truck_size || '20ft',   // drawn as a 20ft or 40ft container
+    urgency: r.urgency || 'normal',      // container colour: normal / urgent / very_urgent
     owner: !!r.is_owner,                 // the main admin: never tracked, can't be changed by other admins
     tracked: !!r.tracked,                // admins only: location shared (switched by the main admin)
     problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / battery_dead / signed_out
@@ -198,14 +200,31 @@
   map.on('dragstart', () => { userMovedMap = true; });
   map.getContainer().addEventListener('wheel', () => { userMovedMap = true; }, { passive: true });
 
-  // A top-down truck (cab in the status colour, shaded container, shadow) that turns to face
-  // the direction it's driving. Shared gradients are defined once in admin.html.
-  const TRUCK_SVG = `
-    <svg class="truck-svg" viewBox="0 0 28 50" width="24" height="42" aria-hidden="true">
-      <rect x="2.5" y="17" width="23" height="31" rx="2.5" fill="url(#ib-box)" stroke="#7d8a95" stroke-width=".8"/>
-      <path d="M6 21h16M6 26h16M6 31h16M6 36h16M6 41h16" stroke="#9aa6b0" stroke-width=".6" opacity=".7"/>
-      <rect x="1" y="21" width="2" height="5" rx=".8" fill="#2b3640"/><rect x="25" y="21" width="2" height="5" rx=".8" fill="#2b3640"/>
-      <rect x="1" y="38" width="2" height="6" rx=".8" fill="#2b3640"/><rect x="25" y="38" width="2" height="6" rx=".8" fill="#2b3640"/>
+  // A top-down truck that turns to face the direction it's driving:
+  //   cab       = live status colour (green / amber / grey / red)
+  //   container = urgency (white normal, yellow urgent, red very urgent), 20ft or 40ft long
+  //   roof stripe = driver type (blue Import, orange Export)
+  // Shared gradients are defined once in admin.html.
+  const URGENCY = {
+    normal: { fill: 'url(#ib-box)', label: 'Normal' },
+    urgent: { fill: 'url(#ib-box-y)', label: 'Urgent' },
+    very_urgent: { fill: 'url(#ib-box-r)', label: 'Very urgent' },
+  };
+  const TYPE_STRIPE = { import_driver: '#2563eb', export_driver: '#f97316' };
+  function truckSvg(u) {
+    const long = u.truckSize === '40ft';
+    const box = long ? 49 : 31; // container length
+    const h = 17 + box + 2;
+    const fill = (URGENCY[u.urgency] || URGENCY.normal).fill;
+    const ribs = Array.from({ length: Math.floor((box - 6) / 5) }, (_, i) => `M6 ${22 + i * 5}h16`).join('');
+    const wheels = (long ? [21, 40, 58] : [21, 38]).map((y) => `<rect x="1" y="${y}" width="2" height="5.5" rx=".8" fill="#2b3640"/><rect x="25" y="${y}" width="2" height="5.5" rx=".8" fill="#2b3640"/>`).join('');
+    const stripe = TYPE_STRIPE[u.role] ? `<rect x="11.5" y="18.5" width="5" height="${box - 3}" rx="1.5" fill="${TYPE_STRIPE[u.role]}" opacity=".9"/>` : '';
+    return `
+    <svg class="truck-svg" viewBox="0 0 28 ${h}" width="24" height="${Math.round(h * 24 / 28)}" aria-hidden="true">
+      ${wheels}
+      <rect x="2.5" y="17" width="23" height="${box}" rx="2.5" fill="${fill}" stroke="#7d8a95" stroke-width=".8"/>
+      <path d="${ribs}" stroke="#000" stroke-width=".5" opacity=".18"/>
+      ${stripe}
       <rect x="4.5" y="13.5" width="19" height="4.5" rx="1" fill="#3a4651"/>
       <rect class="cab" x="4" y="1.5" width="20" height="14" rx="5"/>
       <rect x="4" y="1.5" width="20" height="14" rx="5" fill="url(#ib-shade)"/>
@@ -214,6 +233,15 @@
       <rect x="1.5" y="6.5" width="2.5" height="2" rx=".8" fill="#2b3640"/><rect x="24" y="6.5" width="2.5" height="2" rx=".8" fill="#2b3640"/>
       <rect x="6" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/><rect x="18.5" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/>
     </svg>`;
+  }
+
+  // Tags next to the name: driver type and urgency.
+  const TYPE_TAG = { import_driver: ['Import', 'tag-import'], export_driver: ['Export', 'tag-export'] };
+  function nameTags(u) {
+    const t = TYPE_TAG[u.role];
+    const urg = u.urgency && u.urgency !== 'normal' ? `<span class="tag tag-${u.urgency}">${URGENCY[u.urgency].label}</span>` : '';
+    return `${t ? `<span class="tag ${t[1]}">${t[0]}</span>` : ''}${urg}`;
+  }
 
   // Tracked admins show as a car (same style: body in the status colour, turns to its heading).
   const CAR_SVG = `
@@ -241,9 +269,9 @@
       html: `
         <div class="truck ${statusOf(u)}${inside}">
           <div class="pulse"></div>
-          <div class="truck-rot" style="transform:rotate(${heading}deg)">${u.role === 'admin' ? CAR_SVG : TRUCK_SVG}</div>
+          <div class="truck-rot" style="transform:rotate(${heading}deg)">${u.role === 'admin' ? CAR_SVG : truckSvg(u)}</div>
           ${u.inside ? '<div class="inside-badge" title="Inside a building">🏢</div>' : ''}
-          <div class="truck-label">${esc(u.name)}${chip(u)}</div>
+          <div class="truck-label${u.truckSize === '40ft' && u.role !== 'admin' ? ' long' : ''}">${esc(u.name)}${nameTags(u)}${chip(u)}</div>
         </div>`,
     });
   }
@@ -267,7 +295,7 @@
   function popupHtml(u) {
     const speed = kmh(u);
     return `<b>${esc(u.name)}</b><br>
-      ${esc(ROLES[u.role] || u.role)} · ${esc(u.phone)}<br>
+      ${esc(ROLES[u.role] || u.role)}${u.role !== 'admin' ? ` · ${u.truckSize} · ${URGENCY[u.urgency].label}` : ''} · ${esc(u.phone)}<br>
       ${chip(u)} · updated ${ago(u.location.at)}
       ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
       ${u.inside ? `<br>🏢 <b>Inside a building</b>${u.inside.name ? `: ${esc(u.inside.name)}` : ''}` : ''}
@@ -380,10 +408,14 @@
       return `
         <div class="user ${u.id === selectedId ? 'selected' : ''}" data-id="${u.id}">
           <span class="dot ${state}"></span>
-          <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}</div>
+          <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}${u.role === 'admin' ? '' : nameTags(u)}</div>
           <div class="meta">${meta}</div>
           ${self || locked ? '' : `<div class="controls">
             <select data-role="${u.id}" aria-label="Role for ${esc(u.name)}">${options}</select>
+            ${u.role === 'admin' ? '' : `<select data-size="${u.id}" class="small" aria-label="Truck size">
+              ${['20ft', '40ft'].map((v) => `<option ${v === u.truckSize ? 'selected' : ''}>${v}</option>`).join('')}</select>
+            <select data-urgency="${u.id}" class="small urg-${u.urgency}" aria-label="Urgency">
+              ${Object.entries(URGENCY).map(([k, v]) => `<option value="${k}" ${k === u.urgency ? 'selected' : ''}>${v.label}</option>`).join('')}</select>`}
             ${trackBtn}
             ${!isTracked(u) ? '' : `<button class="del" data-history="${u.id}" title="Trip history">History</button>`}
             ${u.email ? `<button class="del" data-reset="${u.id}" title="Set a new password">🔑</button>` : ''}
@@ -461,6 +493,23 @@
     }
   });
   listEl.addEventListener('focusout', () => setTimeout(renderList, 0));
+
+  // Truck size and urgency (how the driver's truck is drawn on the map).
+  listEl.addEventListener('change', async (e) => {
+    const id = e.target.dataset.size || e.target.dataset.urgency;
+    if (!id) return;
+    const args = { p_user: id };
+    if (e.target.dataset.size) args.p_truck_size = e.target.value;
+    else args.p_urgency = e.target.value;
+    const { data, error } = await sb.rpc('admin_set_truck', args);
+    if (error) {
+      await Ibraya.message('Could not save', Ibraya.friendlyError(error));
+    } else {
+      upsertUser(data);
+    }
+    e.target.blur();
+    renderList();
+  });
 
   listEl.addEventListener('click', async (e) => {
     const id = e.target.dataset.del;

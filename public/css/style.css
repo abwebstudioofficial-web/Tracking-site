@@ -177,7 +177,8 @@ button, input, select { font: inherit; color: inherit; }
 .user.selected { border-color: var(--accent-text); background: var(--panel-2); }
 .user .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user .meta { grid-column: 2; color: var(--muted); font-size: 12.5px; }
-.user .controls { grid-column: 2; display: flex; gap: 6px; margin-top: 6px; }
+.user .controls { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.user .controls .del { white-space: nowrap; min-height: 32px; }
 .user select {
   flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
 }
@@ -291,6 +292,16 @@ button, input, select { font: inherit; color: inherit; }
 :root[data-theme="dark"] .user .state-offline,
 :root[data-theme="dark"] .user .state-none    { background: rgba(255,255,255,.08); color: var(--muted); }
 .truck-label .state-chip { margin-left: 6px; }
+.truck-label.long { top: 54px; }
+/* driver type / urgency tags (map labels, list rows) */
+.tag { display: inline-block; font-size: 10.5px; font-weight: 700; line-height: 1; padding: 3px 6px; border-radius: 99px; margin-left: 5px; vertical-align: 1px; }
+.tag-import { background: #dbe7ff; color: #1d4ed8; }
+.tag-export { background: #ffe6d3; color: #c2410c; }
+.tag-urgent { background: #fef3c7; color: #92400e; }
+.tag-very_urgent { background: #fee2e2; color: #b91c1c; }
+.user select.small { flex: 0 0 auto; padding: 6px 4px; }
+.user select.urg-urgent { border-color: #f59e0b; }
+.user select.urg-very_urgent { border-color: #ef4444; color: #b91c1c; }
 .state-alert   { background: #fde2e2; color: #b42323; }
 :root[data-theme="dark"] .user .state-alert { background: rgba(255,93,93,.16); color: #ff8080; }
 .my-tracking { display: block; margin: 10px 16px 0; text-decoration: none; color: var(--text); font-size: 13.5px; }
