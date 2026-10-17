@@ -94,7 +94,9 @@
   const distance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`);
 
   // ---------- map ----------
-  const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
+  // Zoom is capped at street level: further in, the map has nothing more to draw and goes blank
+  // (and past MapLibre's own limit it falls out of step with Leaflet and stays blank).
+  const map = L.map('map', { zoomControl: false, minZoom: 3, maxZoom: 19 }).setView([30.3753, 69.3451], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
   // Base map: OpenFreeMap (free, no API key), drawn in the browser by MapLibre so we can
   // choose the labels: English name on top, Urdu (or other local script) underneath.
@@ -180,6 +182,14 @@
       }
       const gl = L.maplibreGL({ style }).addTo(map);
       glMap = gl.getMaplibreMap();
+      // Phones can drop the map's graphics when short of memory: rebuild it instead of staying blank.
+      glMap.on('webglcontextlost', () => {
+        setTimeout(() => {
+          map.removeLayer(gl);
+          glMap = null;
+          addBaseMap();
+        }, 500);
+      });
       // Building outlines arrive when zoomed in: re-check who is inside a building.
       let idleTimer = null;
       glMap.on('idle', () => {
