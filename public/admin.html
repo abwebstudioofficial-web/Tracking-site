@@ -15,6 +15,17 @@
   <script src="/js/theme.js"></script>
 </head>
 <body class="admin-page">
+  <!-- Shading shared by every truck icon -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="ib-box" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e9eef2"/><stop offset="1" stop-color="#b8c3cc"/>
+      </linearGradient>
+      <linearGradient id="ib-shade" x1="0" x2="1" y1="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/>
+      </linearGradient>
+    </defs>
+  </svg>
   <div class="admin">
     <aside class="sidebar" id="sidebar">
       <header>

@@ -248,23 +248,30 @@ button, input, select { font: inherit; color: inherit; }
 .map-wrap { position: relative; min-height: 0; }
 .toggle-list { display: none; }
 
-/* truck markers */
-.truck { position: relative; width: 44px; height: 44px; }
+/* truck markers: a top-down truck that turns to its heading; cab colour = status */
+.truck { position: relative; width: 44px; height: 44px; --cab: #1fae5b; }
 .truck .pulse {
-  position: absolute; inset: 0; border-radius: 50%; background: rgba(193, 241, 29, .35);
+  position: absolute; inset: 2px; border-radius: 50%; background: rgba(31, 174, 91, .28);
   animation: pulse 2s ease-out infinite;
 }
-.truck.offline .pulse { display: none; }
-.truck .body {
-  position: absolute; inset: 7px; border-radius: 50%; background: #12180a; border: 3px solid var(--accent);
-  display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.35);
+.truck .truck-rot {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  transition: transform .8s ease;
 }
-.truck.offline .body { border-color: #9aa5ae; background: #4a555e; }
-.truck .arrow {
-  position: absolute; left: 50%; top: -1px; width: 0; height: 0; margin-left: -6px;
-  border: 6px solid transparent; border-bottom: 9px solid var(--accent); border-top: 0;
+.truck .truck-svg { filter: drop-shadow(2px 4px 3px rgba(0, 0, 0, .45)); overflow: visible; }
+.truck .truck-svg .cab { fill: var(--cab); }
+.truck.idle { --cab: #f5a524; }
+.truck.offline, .truck.none { --cab: #8b97a1; }
+.truck.alert { --cab: #d93838; }
+.truck.idle .pulse, .truck.offline .pulse, .truck.none .pulse, .truck.alert .pulse { display: none; }
+.truck.offline .truck-svg, .truck.none .truck-svg { opacity: .75; }
+/* inside a building: see-through, with a building badge */
+.truck.inside .truck-svg { opacity: .5; }
+.truck.inside .pulse { display: none; }
+.inside-badge {
+  position: absolute; right: -4px; top: -4px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; display: grid; place-items: center; font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.35);
 }
-.truck.offline .arrow { display: none; }
 .truck-label {
   position: absolute; top: 46px; left: 50%; transform: translateX(-50%); white-space: nowrap;
   background: #fff; color: #111; font: 600 12px system-ui, sans-serif; padding: 2px 8px;
@@ -297,14 +304,7 @@ a.my-tracking[href] { border-color: var(--accent-text); }
 :root[data-theme="dark"] .sim-unknown { background: rgba(255,255,255,.08); color: var(--muted); }
 :root[data-theme="dark"] .sim-bad { background: rgba(255,93,93,.16); color: #ff8080; }
 .dot.bad { background: var(--danger); box-shadow: 0 0 0 4px rgba(217, 56, 56, .18); }
-.truck.alert .pulse, .truck.alert .arrow { display: none; }
-.truck.alert .body { border-color: var(--danger); background: #4a555e; }
 
-/* idle trucks: amber ring, no pulse */
-.truck.idle .pulse { display: none; }
-.truck.idle .body { border-color: #f5a524; }
-.truck.idle .arrow { border-bottom-color: #f5a524; }
-.truck.none .pulse, .truck.none .arrow { display: none; }
 
 @keyframes pulse { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
 

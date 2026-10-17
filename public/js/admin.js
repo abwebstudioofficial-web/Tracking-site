@@ -109,6 +109,51 @@
         ['var', 'en']]];
   }
 
+  // ---------- inside a building? ----------
+  // Uses the building outlines of the map that are already loaded (when zoomed in to street level,
+  // about zoom 14+). Returns { name } when the point is inside a building, false when it isn't,
+  // and null when it can't tell (zoomed out, or the plain fallback map).
+  let glMap = null;
+  const insideRing = (lng, lat, ring) => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i];
+      const [xj, yj] = ring[j];
+      if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const insidePolygon = (lng, lat, rings) => insideRing(lng, lat, rings[0])
+    && !rings.slice(1).some((hole) => insideRing(lng, lat, hole));
+  function containsPoint(geometry, lng, lat) {
+    if (geometry.type === 'Polygon') return insidePolygon(lng, lat, geometry.coordinates);
+    if (geometry.type === 'MultiPolygon') return geometry.coordinates.some((poly) => insidePolygon(lng, lat, poly));
+    return false;
+  }
+  function vectorSource() {
+    const sources = glMap.getStyle().sources;
+    return Object.keys(sources).find((k) => sources[k].type === 'vector');
+  }
+  function buildingAt(lat, lng) {
+    try {
+      if (!glMap || !glMap.isStyleLoaded() || glMap.getZoom() < 14) return null;
+      const source = vectorSource();
+      if (!source) return null;
+      const buildings = glMap.querySourceFeatures(source, { sourceLayer: 'building' });
+      if (!buildings.length) return null;
+      const building = buildings.find((b) => containsPoint(b.geometry, lng, lat));
+      if (!building) return false;
+      // A named place (shop, plaza, office...) inside that building, if the map has one.
+      const poi = glMap.querySourceFeatures(source, { sourceLayer: 'poi' })
+        .find((f) => f.properties.name && f.geometry.type === 'Point'
+          && containsPoint(building.geometry, f.geometry.coordinates[0], f.geometry.coordinates[1]));
+      const p = (poi || building).properties || {};
+      return { name: p['name:en'] || p.name_en || p.name || '' };
+    } catch {
+      return null;
+    }
+  }
+
   async function addBaseMap() {
     try {
       if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre not loaded');
@@ -121,10 +166,24 @@
         const field = layer.layout && layer.layout['text-field'];
         const text = JSON.stringify(field || '');
         if (!text.includes('name')) continue; // leave road numbers etc. alone
+        if (layer['source-layer'] === 'poi') {
+          // Shops, buildings, places: one line, close under their icon, so the name stays on its building.
+          layer.layout['text-field'] = bilingualLabel(' · ');
+          layer.layout['text-offset'] = [0, 0.35];
+          layer.layout['text-max-width'] = 9;
+          continue;
+        }
         // Point labels (cities) get two lines; labels along roads/rivers stay on one line.
         layer.layout['text-field'] = bilingualLabel(text.includes('\\n') ? '\n' : ' ');
       }
-      L.maplibreGL({ style }).addTo(map);
+      const gl = L.maplibreGL({ style }).addTo(map);
+      glMap = gl.getMaplibreMap();
+      // Building outlines arrive when zoomed in: re-check who is inside a building.
+      let idleTimer = null;
+      glMap.on('idle', () => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => users.forEach(renderMarker), 300);
+      });
       map.attributionControl.addAttribution(
         `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
       );
@@ -139,23 +198,36 @@
   map.on('dragstart', () => { userMovedMap = true; });
   map.getContainer().addEventListener('wheel', () => { userMovedMap = true; }, { passive: true });
 
+  // A top-down truck (cab in the status colour, shaded container, shadow) that turns to face
+  // the direction it's driving. Shared gradients are defined once in admin.html.
+  const TRUCK_SVG = `
+    <svg class="truck-svg" viewBox="0 0 28 50" width="24" height="42" aria-hidden="true">
+      <rect x="2.5" y="17" width="23" height="31" rx="2.5" fill="url(#ib-box)" stroke="#7d8a95" stroke-width=".8"/>
+      <path d="M6 21h16M6 26h16M6 31h16M6 36h16M6 41h16" stroke="#9aa6b0" stroke-width=".6" opacity=".7"/>
+      <rect x="1" y="21" width="2" height="5" rx=".8" fill="#2b3640"/><rect x="25" y="21" width="2" height="5" rx=".8" fill="#2b3640"/>
+      <rect x="1" y="38" width="2" height="6" rx=".8" fill="#2b3640"/><rect x="25" y="38" width="2" height="6" rx=".8" fill="#2b3640"/>
+      <rect x="4.5" y="13.5" width="19" height="4.5" rx="1" fill="#3a4651"/>
+      <rect class="cab" x="4" y="1.5" width="20" height="14" rx="5"/>
+      <rect x="4" y="1.5" width="20" height="14" rx="5" fill="url(#ib-shade)"/>
+      <path d="M6.5 4.6c0-1 .8-1.6 1.8-1.6h11.4c1 0 1.8.6 1.8 1.6v3.2H6.5z" fill="#1c2833"/>
+      <path d="M8 4.3h4.5L10 7H8z" fill="#fff" opacity=".35"/>
+      <rect x="1.5" y="6.5" width="2.5" height="2" rx=".8" fill="#2b3640"/><rect x="24" y="6.5" width="2.5" height="2" rx=".8" fill="#2b3640"/>
+      <rect x="6" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/><rect x="18.5" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/>
+    </svg>`;
+
   function truckIcon(u) {
     const heading = u.location && u.location.heading != null ? u.location.heading : 0;
-    const showArrow = u.location && u.location.heading != null;
+    const inside = u.inside ? ' inside' : '';
     return L.divIcon({
       className: '',
       iconSize: [44, 44],
       iconAnchor: [22, 22],
-      popupAnchor: [0, -20],
+      popupAnchor: [0, -22],
       html: `
-        <div class="truck ${statusOf(u)}">
+        <div class="truck ${statusOf(u)}${inside}">
           <div class="pulse"></div>
-          <div style="position:absolute;inset:0;transform:rotate(${heading}deg)">
-            ${showArrow ? '<div class="arrow"></div>' : ''}
-          </div>
-          <div class="body">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h13v11H1z"/><path d="M14 8h4l4 4v3h-8z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
-          </div>
+          <div class="truck-rot" style="transform:rotate(${heading}deg)">${TRUCK_SVG}</div>
+          ${u.inside ? '<div class="inside-badge" title="Inside a building">🏢</div>' : ''}
           <div class="truck-label">${esc(u.name)}${chip(u)}</div>
         </div>`,
     });
@@ -183,6 +255,7 @@
       ${esc(ROLES[u.role] || u.role)} · ${esc(u.phone)}<br>
       ${chip(u)} · updated ${ago(u.location.at)}
       ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
+      ${u.inside ? `<br>🏢 <b>Inside a building</b>${u.inside.name ? `: ${esc(u.inside.name)}` : ''}` : ''}
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}
       ${u.battery != null ? `<br>Battery: ${u.battery}%` : ''}<br>
       ${nearbyHtml(u)}
@@ -224,6 +297,9 @@
       return;
     }
     const latlng = [u.location.lat, u.location.lng];
+    // Inside a building? Only known when zoomed in near it; otherwise keep the last answer.
+    const inside = buildingAt(u.location.lat, u.location.lng);
+    if (inside !== null) u.inside = inside || null;
     if (!m) {
       m = L.marker(latlng, { icon: truckIcon(u) }).addTo(fleetLayer).bindPopup(popupHtml(u));
       m.on('click', () => select(u.id, false));
@@ -853,6 +929,10 @@
     if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
     // The main admin switched my tracking on or off.
     if (me && u.id === me.id && !!row.tracked !== !!me.tracked) { me = row; syncMyTracking(); }
+    // Keep "inside a building" while the truck hasn't moved (it's only re-checked when zoomed in).
+    const prev = users.get(u.id);
+    if (prev && prev.inside && prev.location && u.location
+      && prev.location.lat === u.location.lat && prev.location.lng === u.location.lng) u.inside = prev.inside;
     users.set(u.id, u);
     renderMarker(u);
   }
