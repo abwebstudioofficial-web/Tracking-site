@@ -32,6 +32,8 @@
     phone: r.phone || '',
     email: r.email,
     role: r.role,
+    truckSize: r.truck_size || '20ft',   // drawn as a 20ft or 40ft container
+    urgency: r.urgency || 'normal',      // container colour: normal / urgent / very_urgent
     owner: !!r.is_owner,                 // the main admin: never tracked, can't be changed by other admins
     tracked: !!r.tracked,                // admins only: location shared (switched by the main admin)
     problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / battery_dead / signed_out
@@ -109,6 +111,51 @@
         ['var', 'en']]];
   }
 
+  // ---------- inside a building? ----------
+  // Uses the building outlines of the map that are already loaded (when zoomed in to street level,
+  // about zoom 14+). Returns { name } when the point is inside a building, false when it isn't,
+  // and null when it can't tell (zoomed out, or the plain fallback map).
+  let glMap = null;
+  const insideRing = (lng, lat, ring) => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i];
+      const [xj, yj] = ring[j];
+      if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const insidePolygon = (lng, lat, rings) => insideRing(lng, lat, rings[0])
+    && !rings.slice(1).some((hole) => insideRing(lng, lat, hole));
+  function containsPoint(geometry, lng, lat) {
+    if (geometry.type === 'Polygon') return insidePolygon(lng, lat, geometry.coordinates);
+    if (geometry.type === 'MultiPolygon') return geometry.coordinates.some((poly) => insidePolygon(lng, lat, poly));
+    return false;
+  }
+  function vectorSource() {
+    const sources = glMap.getStyle().sources;
+    return Object.keys(sources).find((k) => sources[k].type === 'vector');
+  }
+  function buildingAt(lat, lng) {
+    try {
+      if (!glMap || !glMap.isStyleLoaded() || glMap.getZoom() < 14) return null;
+      const source = vectorSource();
+      if (!source) return null;
+      const buildings = glMap.querySourceFeatures(source, { sourceLayer: 'building' });
+      if (!buildings.length) return null;
+      const building = buildings.find((b) => containsPoint(b.geometry, lng, lat));
+      if (!building) return false;
+      // A named place (shop, plaza, office...) inside that building, if the map has one.
+      const poi = glMap.querySourceFeatures(source, { sourceLayer: 'poi' })
+        .find((f) => f.properties.name && f.geometry.type === 'Point'
+          && containsPoint(building.geometry, f.geometry.coordinates[0], f.geometry.coordinates[1]));
+      const p = (poi || building).properties || {};
+      return { name: p['name:en'] || p.name_en || p.name || '' };
+    } catch {
+      return null;
+    }
+  }
+
   async function addBaseMap() {
     try {
       if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre not loaded');
@@ -121,10 +168,24 @@
         const field = layer.layout && layer.layout['text-field'];
         const text = JSON.stringify(field || '');
         if (!text.includes('name')) continue; // leave road numbers etc. alone
+        if (layer['source-layer'] === 'poi') {
+          // Shops, buildings, places: one line, close under their icon, so the name stays on its building.
+          layer.layout['text-field'] = bilingualLabel(' · ');
+          layer.layout['text-offset'] = [0, 0.35];
+          layer.layout['text-max-width'] = 9;
+          continue;
+        }
         // Point labels (cities) get two lines; labels along roads/rivers stay on one line.
         layer.layout['text-field'] = bilingualLabel(text.includes('\\n') ? '\n' : ' ');
       }
-      L.maplibreGL({ style }).addTo(map);
+      const gl = L.maplibreGL({ style }).addTo(map);
+      glMap = gl.getMaplibreMap();
+      // Building outlines arrive when zoomed in: re-check who is inside a building.
+      let idleTimer = null;
+      glMap.on('idle', () => {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => users.forEach(renderMarker), 300);
+      });
       map.attributionControl.addAttribution(
         `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
       );
@@ -135,28 +196,75 @@
   addBaseMap();
 
   const markers = new Map();
+  let following = null; // "Follow live": { id, line, points } (see the follow section)
   const fleetLayer = L.layerGroup().addTo(map); // live trucks (hidden while a trip history is shown)
   map.on('dragstart', () => { userMovedMap = true; });
   map.getContainer().addEventListener('wheel', () => { userMovedMap = true; }, { passive: true });
 
+  // A top-down truck that turns to face the direction it's driving:
+  //   cab       = live status colour (green / amber / grey / red)
+  //   container = urgency (white normal, yellow urgent, red very urgent), 20ft or 40ft long
+  // Shared gradients are defined once in admin.html.
+  const URGENCY = {
+    normal: { fill: 'url(#ib-box)', label: 'Normal' },
+    urgent: { fill: 'url(#ib-box-y)', label: 'Urgent' },
+    very_urgent: { fill: 'url(#ib-box-r)', label: 'Very urgent' },
+  };
+  function truckSvg(u) {
+    const long = u.truckSize === '40ft';
+    const box = long ? 49 : 31; // container length
+    const h = 17 + box + 2;
+    const fill = (URGENCY[u.urgency] || URGENCY.normal).fill;
+    const ribs = Array.from({ length: Math.floor((box - 6) / 5) }, (_, i) => `M6 ${22 + i * 5}h16`).join('');
+    const wheels = (long ? [21, 40, 58] : [21, 38]).map((y) => `<rect x="1" y="${y}" width="2" height="5.5" rx=".8" fill="#2b3640"/><rect x="25" y="${y}" width="2" height="5.5" rx=".8" fill="#2b3640"/>`).join('');
+    return `
+    <svg class="truck-svg" viewBox="0 0 28 ${h}" width="24" height="${Math.round(h * 24 / 28)}" aria-hidden="true">
+      ${wheels}
+      <rect x="2.5" y="17" width="23" height="${box}" rx="2.5" fill="${fill}" stroke="#7d8a95" stroke-width=".8"/>
+      <path d="${ribs}" stroke="#000" stroke-width=".5" opacity=".18"/>
+      <rect x="4.5" y="13.5" width="19" height="4.5" rx="1" fill="#3a4651"/>
+      <rect class="cab" x="4" y="1.5" width="20" height="14" rx="5"/>
+      <rect x="4" y="1.5" width="20" height="14" rx="5" fill="url(#ib-shade)"/>
+      <path d="M6.5 4.6c0-1 .8-1.6 1.8-1.6h11.4c1 0 1.8.6 1.8 1.6v3.2H6.5z" fill="#1c2833"/>
+      <path d="M8 4.3h4.5L10 7H8z" fill="#fff" opacity=".35"/>
+      <rect x="1.5" y="6.5" width="2.5" height="2" rx=".8" fill="#2b3640"/><rect x="24" y="6.5" width="2.5" height="2" rx=".8" fill="#2b3640"/>
+      <rect x="6" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/><rect x="18.5" y="1.2" width="3.5" height="1.3" rx=".6" fill="#ffe08a"/>
+    </svg>`;
+  }
+
+  // Tag next to the name for urgent trucks.
+  const nameTags = (u) => (u.urgency && u.urgency !== 'normal'
+    ? `<span class="tag tag-${u.urgency}">${URGENCY[u.urgency].label}</span>` : '');
+
+  // Tracked admins show as a car (same style: body in the status colour, turns to its heading).
+  const CAR_SVG = `
+    <svg class="truck-svg car-svg" viewBox="0 0 26 44" width="22" height="38" aria-hidden="true">
+      <rect x="1" y="8" width="2.6" height="7" rx="1.2" fill="#22303b"/><rect x="22.4" y="8" width="2.6" height="7" rx="1.2" fill="#22303b"/>
+      <rect x="1" y="29" width="2.6" height="7" rx="1.2" fill="#22303b"/><rect x="22.4" y="29" width="2.6" height="7" rx="1.2" fill="#22303b"/>
+      <path class="cab" d="M13 1.5c5.2 0 9.5 2.6 9.5 7.5v27c0 4.4-3.4 6.5-9.5 6.5S3.5 40.4 3.5 36V9C3.5 4.1 7.8 1.5 13 1.5z"/>
+      <path d="M13 1.5c5.2 0 9.5 2.6 9.5 7.5v27c0 4.4-3.4 6.5-9.5 6.5S3.5 40.4 3.5 36V9C3.5 4.1 7.8 1.5 13 1.5z" fill="url(#ib-shade)"/>
+      <path d="M6.2 13.5c1.8-1.6 4.2-2.3 6.8-2.3s5 .7 6.8 2.3l-1.4 5.2H7.6z" fill="#1c2833"/>
+      <rect x="7.4" y="19.5" width="11.2" height="10" rx="2" fill="#000" opacity=".12"/>
+      <path d="M7.8 30.5h10.4l1.3 4.2c-1.7 1.3-4 1.9-6.5 1.9s-4.8-.6-6.5-1.9z" fill="#1c2833"/>
+      <path d="M8.6 13.8h3.4l-1.6 3.6H8z" fill="#fff" opacity=".35"/>
+      <rect x="5.2" y="2.6" width="3.6" height="1.6" rx=".8" fill="#ffe08a"/><rect x="17.2" y="2.6" width="3.6" height="1.6" rx=".8" fill="#ffe08a"/>
+      <rect x="1.4" y="12.5" width="2.4" height="1.8" rx=".8" fill="#22303b"/><rect x="22.2" y="12.5" width="2.4" height="1.8" rx=".8" fill="#22303b"/>
+    </svg>`;
+
   function truckIcon(u) {
     const heading = u.location && u.location.heading != null ? u.location.heading : 0;
-    const showArrow = u.location && u.location.heading != null;
+    const inside = u.inside ? ' inside' : '';
     return L.divIcon({
       className: '',
       iconSize: [44, 44],
       iconAnchor: [22, 22],
-      popupAnchor: [0, -20],
+      popupAnchor: [0, -22],
       html: `
-        <div class="truck ${statusOf(u)}">
+        <div class="truck ${statusOf(u)}${inside}">
           <div class="pulse"></div>
-          <div style="position:absolute;inset:0;transform:rotate(${heading}deg)">
-            ${showArrow ? '<div class="arrow"></div>' : ''}
-          </div>
-          <div class="body">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4h13v11H1z"/><path d="M14 8h4l4 4v3h-8z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="17.5" cy="17.5" r="2"/></svg>
-          </div>
-          <div class="truck-label">${esc(u.name)}${chip(u)}</div>
+          <div class="truck-rot" style="transform:rotate(${heading}deg)">${u.role === 'admin' ? CAR_SVG : truckSvg(u)}</div>
+          ${u.inside ? '<div class="inside-badge" title="Inside a building">🏢</div>' : ''}
+          <div class="truck-label${u.truckSize === '40ft' && u.role !== 'admin' ? ' long' : ''}">${esc(u.name)}${nameTags(u)}${chip(u)}</div>
         </div>`,
     });
   }
@@ -180,14 +288,16 @@
   function popupHtml(u) {
     const speed = kmh(u);
     return `<b>${esc(u.name)}</b><br>
-      ${esc(ROLES[u.role] || u.role)} · ${esc(u.phone)}<br>
+      ${esc(ROLES[u.role] || u.role)}${u.role !== 'admin' ? ` · ${u.truckSize} · ${URGENCY[u.urgency].label}` : ''} · ${esc(u.phone)}<br>
       ${chip(u)} · updated ${ago(u.location.at)}
       ${speed != null ? `<br>${isLive(u) ? 'Speed' : 'Last speed'}: <b>${speedText(speed)}</b>` : ''}
+      ${u.inside ? `<br>🏢 <b>Inside a building</b>${u.inside.name ? `: ${esc(u.inside.name)}` : ''}` : ''}
       ${u.location.accuracy != null ? `<br>Accuracy: ±${Math.round(u.location.accuracy)} m` : ''}
       ${u.battery != null ? `<br>Battery: ${u.battery}%` : ''}<br>
       ${nearbyHtml(u)}
+      <button class="link" data-follow="${u.id}">${following && following.id === u.id ? 'Stop following' : 'Follow live'}</button> ·
       <button class="link" data-history="${u.id}">Show history</button> ·
-      <a href="https://www.google.com/maps?q=${u.location.lat},${u.location.lng}" target="_blank" rel="noopener">Open in Google Maps</a>`;
+      <button class="link" data-gmaps="${u.id}">Route in Google Maps</button>`;
   }
 
   // Trucks move continuously instead of jumping: each new position is reached at a steady speed
@@ -224,6 +334,9 @@
       return;
     }
     const latlng = [u.location.lat, u.location.lng];
+    // Inside a building? Only known when zoomed in near it; otherwise keep the last answer.
+    const inside = buildingAt(u.location.lat, u.location.lng);
+    if (inside !== null) u.inside = inside || null;
     if (!m) {
       m = L.marker(latlng, { icon: truckIcon(u) }).addTo(fleetLayer).bindPopup(popupHtml(u));
       m.on('click', () => select(u.id, false));
@@ -289,10 +402,14 @@
       return `
         <div class="user ${u.id === selectedId ? 'selected' : ''}" data-id="${u.id}">
           <span class="dot ${state}"></span>
-          <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}</div>
+          <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}${u.role === 'admin' ? '' : nameTags(u)}</div>
           <div class="meta">${meta}</div>
           ${self || locked ? '' : `<div class="controls">
             <select data-role="${u.id}" aria-label="Role for ${esc(u.name)}">${options}</select>
+            ${u.role === 'admin' ? '' : `<select data-size="${u.id}" class="small" aria-label="Truck size">
+              ${['20ft', '40ft'].map((v) => `<option ${v === u.truckSize ? 'selected' : ''}>${v}</option>`).join('')}</select>
+            <select data-urgency="${u.id}" class="small urg-${u.urgency}" aria-label="Urgency">
+              ${Object.entries(URGENCY).map(([k, v]) => `<option value="${k}" ${k === u.urgency ? 'selected' : ''}>${v.label}</option>`).join('')}</select>`}
             ${trackBtn}
             ${!isTracked(u) ? '' : `<button class="del" data-history="${u.id}" title="Trip history">History</button>`}
             ${u.email ? `<button class="del" data-reset="${u.id}" title="Set a new password">🔑</button>` : ''}
@@ -370,6 +487,23 @@
     }
   });
   listEl.addEventListener('focusout', () => setTimeout(renderList, 0));
+
+  // Truck size and urgency (how the driver's truck is drawn on the map).
+  listEl.addEventListener('change', async (e) => {
+    const id = e.target.dataset.size || e.target.dataset.urgency;
+    if (!id) return;
+    const args = { p_user: id };
+    if (e.target.dataset.size) args.p_truck_size = e.target.value;
+    else args.p_urgency = e.target.value;
+    const { data, error } = await sb.rpc('admin_set_truck', args);
+    if (error) {
+      await Ibraya.message('Could not save', Ibraya.friendlyError(error));
+    } else {
+      upsertUser(data);
+    }
+    e.target.blur();
+    renderList();
+  });
 
   listEl.addEventListener('click', async (e) => {
     const id = e.target.dataset.del;
@@ -744,6 +878,7 @@
   function openHistory(id, day) {
     const u = users.get(id);
     if (!u) return;
+    stopFollow();
     map.closePopup();
     history = { id, day: dayStart(day), points: [], entries: [] };
     $('history-name').textContent = u.name;
@@ -842,6 +977,86 @@
     }
   }
 
+  // ---------- follow live / route in Google Maps ----------
+  // Follow live: keep the map on one truck and draw the road it drove in the last 2 hours,
+  // growing as new positions arrive, so you can see where it's heading.
+  const FOLLOW_TRAIL_MS = 2 * 3600 * 1000;
+  async function recentRoute(id, ms) {
+    const { data } = await sb.rpc('get_driver_history', {
+      p_user: id, p_from: new Date(Date.now() - ms).toISOString(), p_to: new Date(Date.now() + 60000).toISOString(),
+    });
+    return ((data && data.points) || []).map(([, lat, lng]) => [lat, lng]);
+  }
+  function refreshPopup(id) {
+    const u = users.get(id);
+    const m = markers.get(id);
+    if (u && m && u.location) m.setPopupContent(popupHtml(u));
+  }
+  async function startFollow(id) {
+    const u = users.get(id);
+    if (!u || !u.location) return;
+    stopFollow();
+    following = { id, points: [], line: L.polyline([], { color: '#2563eb', weight: 5, opacity: 0.7 }).addTo(map) };
+    userMovedMap = true;
+    map.setView([u.location.lat, u.location.lng], Math.max(map.getZoom(), 15));
+    document.getElementById('follow-name').textContent = u.name;
+    document.getElementById('follow-bar').hidden = false;
+    refreshPopup(id);
+    let points = [];
+    try { points = await recentRoute(id, FOLLOW_TRAIL_MS); } catch { /* just follow from now */ }
+    if (!following || following.id !== id) return;
+    following.points = points;
+    followUpdate(users.get(id));
+  }
+  function followUpdate(u) {
+    if (!following || !u || u.id !== following.id || !u.location) return;
+    const p = [u.location.lat, u.location.lng];
+    const last = following.points[following.points.length - 1];
+    if (!last || last[0] !== p[0] || last[1] !== p[1]) following.points.push(p);
+    following.line.setLatLngs(following.points);
+    map.panTo(p, { animate: true, duration: 2, easeLinearity: 1 });
+  }
+  function stopFollow() {
+    if (!following) return;
+    const id = following.id;
+    following.line.remove();
+    following = null;
+    document.getElementById('follow-bar').hidden = true;
+    refreshPopup(id);
+  }
+  document.getElementById('follow-stop').addEventListener('click', stopFollow);
+
+  // Route in Google Maps: the last hour's route (on the roads) up to where the truck is now.
+  // Google Maps can't receive our live positions, so this shows the route at the moment you tap.
+  async function openRouteInGoogleMaps(id) {
+    const u = users.get(id);
+    if (!u || !u.location) return;
+    const win = window.open('about:blank', '_blank'); // open now, or popup blockers stop it
+    let points = [];
+    try { points = await recentRoute(id, 3600 * 1000); } catch { /* current position only */ }
+    points.push([u.location.lat, u.location.lng]);
+    const n = Math.min(10, points.length); // Google Maps links take about 10 stops
+    const pick = Array.from({ length: n }, (_, i) => points[Math.round((i * (points.length - 1)) / Math.max(n - 1, 1))]);
+    const url = pick.length > 1
+      ? `https://www.google.com/maps/dir/${pick.map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`).join('/')}`
+      : `https://www.google.com/maps?q=${u.location.lat},${u.location.lng}`;
+    if (win) win.location.href = url;
+    else location.href = url;
+  }
+
+  document.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-follow]');
+    const g = e.target.closest('[data-gmaps]');
+    if (f) {
+      e.preventDefault();
+      if (following && following.id === f.dataset.follow) stopFollow();
+      else startFollow(f.dataset.follow);
+    } else if (g) {
+      e.preventDefault();
+      openRouteInGoogleMaps(g.dataset.gmaps);
+    }
+  });
+
   searchEl.addEventListener('input', renderList);
   document.getElementById('toggle').addEventListener('click', () => sidebar.classList.toggle('open'));
   document.getElementById('logout').addEventListener('click', () => Ibraya.signOut());
@@ -853,11 +1068,17 @@
     if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
     // The main admin switched my tracking on or off.
     if (me && u.id === me.id && !!row.tracked !== !!me.tracked) { me = row; syncMyTracking(); }
+    // Keep "inside a building" while the truck hasn't moved (it's only re-checked when zoomed in).
+    const prev = users.get(u.id);
+    if (prev && prev.inside && prev.location && u.location
+      && prev.location.lat === u.location.lat && prev.location.lng === u.location.lng) u.inside = prev.inside;
     users.set(u.id, u);
     renderMarker(u);
+    followUpdate(u);
   }
 
   function removeUser(id) {
+    if (following && following.id === id) stopFollow();
     users.delete(id);
     const m = markers.get(id);
     if (m) { m.remove(); markers.delete(id); }
