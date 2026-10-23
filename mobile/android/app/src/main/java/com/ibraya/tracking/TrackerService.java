@@ -91,6 +91,9 @@ public class TrackerService extends Service implements LocationListener {
     private boolean sending = false;
     private String reportedProblem = null; // last problem told to the admin (cleared by the next location)
     private long startedAt = 0;
+    private OfflineRoute offlineRoute;      // positions recorded while there was no internet
+    private boolean online = true;          // the last send got through
+    private boolean uploadingRoute = false;
 
     /** The driver switches the phone off: tell the admin before it goes dark. */
     private final BroadcastReceiver shutdownReceiver = new BroadcastReceiver() {
@@ -164,6 +167,7 @@ public class TrackerService extends Service implements LocationListener {
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "IbrayaTracking::send");
+        offlineRoute = new OfflineRoute(this);
         wakeLock.setReferenceCounted(false);
         createChannels();
         try {
@@ -271,6 +275,8 @@ public class TrackerService extends Service implements LocationListener {
         boolean movingNow = speed >= MOVING_MPS
             || (moved >= MOVED_METRES && moved > (location.hasAccuracy() ? location.getAccuracy() : 0));
         if (movingNow) lastMovingAt = now;
+        // No internet: keep the route on the phone; it's uploaded once a send gets through.
+        if (!online) offlineRoute.add(location, speed);
         long interval = now - lastMovingAt < KEEP_FAST_MS ? SEND_MOVING_MS : SEND_PARKED_MS;
         // Just came to a stop after driving: send at once, so the map shows the stop quickly.
         boolean justStopped = lastSentMoving && !movingNow && now - lastSentAt >= 2_000;
@@ -363,6 +369,8 @@ public class TrackerService extends Service implements LocationListener {
         final Float heading = location.hasBearing() ? location.getBearing() : null;
         final Float spd = speed >= 0 ? speed : null;
         final int battery = batteryLevel(this);
+        final Location sentLocation = new Location(location);
+        final float sentSpeed = speed;
         wakeLock.acquire(30_000);
         network.execute(() -> {
             String result = null;
@@ -382,18 +390,20 @@ public class TrackerService extends Service implements LocationListener {
             }
             final String finalResult = result;
             final String finalError = error;
-            handler.post(() -> afterSend(finalResult, finalError));
+            handler.post(() -> afterSend(finalResult, finalError, sentLocation, sentSpeed));
         });
         return true;
     }
 
-    private void afterSend(String result, String error) {
+    private void afterSend(String result, String error, Location location, float speed) {
         sending = false;
         if (wakeLock.isHeld()) wakeLock.release();
         SharedPreferences.Editor edit = prefs(this).edit();
         if (error != null) {
             // No signal etc.: keep going, the next reading will try again.
             edit.putString(KEY_LAST_ERROR, error).apply();
+            online = false;
+            offlineRoute.add(location, speed);
             lastSentAt = System.currentTimeMillis() - SEND_PARKED_MS + 10_000; // retry in ~10 s
             return;
         }
@@ -403,6 +413,54 @@ public class TrackerService extends Service implements LocationListener {
         }
         edit.putLong(KEY_LAST_SENT, System.currentTimeMillis()).remove(KEY_LAST_ERROR).apply();
         reportedProblem = null; // a location got through, so the admin sees the truck again
+        online = true;
+        uploadOfflineRoute();
+    }
+
+    /** Uploads the route recorded without internet, oldest first, in batches. */
+    private void uploadOfflineRoute() {
+        if (uploadingRoute || offlineRoute.size() == 0) return;
+        SharedPreferences p = prefs(this);
+        String token = p.getString(KEY_TOKEN, null);
+        String url = p.getString(KEY_URL, null);
+        String apiKey = p.getString(KEY_APIKEY, null);
+        if (token == null || url == null || apiKey == null) return;
+        uploadingRoute = true;
+        network.execute(() -> {
+            boolean revoked = false;
+            try {
+                while (offlineRoute.size() > 0) {
+                    JSONObject body = new JSONObject();
+                    body.put("p_token", token);
+                    body.put("p_points", offlineRoute.firstBatch());
+                    String result;
+                    try {
+                        result = post(url + "/rest/v1/rpc/track_backlog", apiKey, body.toString(), 30_000);
+                    } catch (Exception e) {
+                        // The server refused these points (not a connection problem): skip them,
+                        // so one bad batch can't block the rest of the route forever.
+                        if (String.valueOf(e.getMessage()).startsWith("HTTP 400")) {
+                            offlineRoute.dropFirst(OfflineRoute.BATCH);
+                            continue;
+                        }
+                        throw e;
+                    }
+                    if ("-1".equals(result.trim())) {
+                        revoked = true;
+                        break;
+                    }
+                    offlineRoute.dropFirst(OfflineRoute.BATCH);
+                }
+            } catch (Exception e) {
+                // Lost the internet again: the rest goes with the next successful send.
+                Log.w(TAG, "Could not upload the offline route", e);
+            }
+            final boolean tokenGone = revoked;
+            handler.post(() -> {
+                uploadingRoute = false;
+                if (tokenGone) tokenRevoked();
+            });
+        });
     }
 
     // ---------- telling the admin why there is no location ----------
@@ -444,6 +502,7 @@ public class TrackerService extends Service implements LocationListener {
 
     /** The token is no longer valid: signed out on another phone, or the driver was removed. */
     private void tokenRevoked() {
+        if (offlineRoute != null) offlineRoute.clear();
         prefs(this).edit().remove(KEY_TOKEN).putBoolean(KEY_SIGNED_OUT, true).putString(KEY_LAST_ERROR, "signed out").apply();
         notifySignedOut();
         stopSelf();

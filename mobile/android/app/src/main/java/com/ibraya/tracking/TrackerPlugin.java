@@ -55,6 +55,8 @@ public class TrackerPlugin extends Plugin {
             call.reject("token, supabaseUrl and apiKey are required");
             return;
         }
+        // A new sign-in: a route saved offline under an earlier account must not be uploaded as this one's.
+        new OfflineRoute(getContext()).clear();
         TrackerService.prefs(getContext()).edit()
             .putString(TrackerService.KEY_TOKEN, token)
             .putString(TrackerService.KEY_URL, url)
@@ -71,6 +73,7 @@ public class TrackerPlugin extends Plugin {
     @PluginMethod
     public void stop(PluginCall call) {
         TrackerService.prefs(getContext()).edit().clear().apply();
+        new OfflineRoute(getContext()).clear();
         getContext().stopService(new Intent(getContext(), TrackerService.class));
         call.resolve(status(getContext()));
     }
