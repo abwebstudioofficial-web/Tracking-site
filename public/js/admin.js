@@ -943,8 +943,27 @@
     following.points = points;
     followUpdate(users.get(id));
   }
+  // A truck that was without internet uploads the road it took once it's back online:
+  // after a gap, load the trail again a little later so that part is drawn in too.
+  const FOLLOW_GAP_MS = 2 * 60 * 1000;
+  async function reloadTrail(id) {
+    let points;
+    try { points = await recentRoute(id, FOLLOW_TRAIL_MS); } catch { return; }
+    const u = users.get(id);
+    if (!following || following.id !== id || !points.length) return;
+    if (u && u.location) points.push([u.location.lat, u.location.lng]);
+    following.points = points;
+    following.line.setLatLngs(points);
+  }
   function followUpdate(u) {
     if (!following || !u || u.id !== following.id || !u.location) return;
+    const at = new Date(u.location.at).getTime();
+    if (following.lastAt && at - following.lastAt > FOLLOW_GAP_MS) {
+      const id = u.id;
+      setTimeout(() => reloadTrail(id), 20000);
+      setTimeout(() => reloadTrail(id), 90000);
+    }
+    following.lastAt = at;
     const p = [u.location.lat, u.location.lng];
     const last = following.points[following.points.length - 1];
     if (!last || last[0] !== p[0] || last[1] !== p[1]) following.points.push(p);
@@ -1018,12 +1037,13 @@
 
   async function loadAll() {
     const { data, error } = await sb.from('profiles').select('*');
-    if (error) return;
+    if (error) return false;
     const seen = new Set();
     data.forEach((row) => { seen.add(row.id); upsertUser(row); });
     [...users.keys()].filter((id) => !seen.has(id)).forEach(removeUser);
     renderList();
     renderAlerts();
+    return true;
   }
 
   me = await Ibraya.guard('/admin');
@@ -1034,7 +1054,10 @@
   });
 
   // The database only sends the admin these changes (row-level security).
-  sb.channel('fleet')
+  let fleet = null;
+  function connectLive() {
+    if (fleet) sb.removeChannel(fleet);
+    fleet = sb.channel('fleet')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
       if (payload.eventType === 'DELETE') removeUser(payload.old.id);
       else { upsertUser(payload.new); renderList(); }
@@ -1048,8 +1071,28 @@
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') { loadAll(); loadIncidents(); } // (re)load everything after (re)connecting
     });
+  }
+  connectLive();
 
   await loadAll();
+
+  // Manual refresh, in case live updates stopped: load everything again and reconnect.
+  const refreshBtn = document.getElementById('refresh');
+  refreshBtn.addEventListener('click', async () => {
+    if (refreshBtn.classList.contains('spinning')) return;
+    refreshBtn.classList.add('spinning');
+    try {
+      const [ok] = await Promise.all([loadAll(), loadIncidents(), following ? reloadTrail(following.id) : null]);
+      if (!fleet || fleet.state !== 'joined') connectLive();
+      if (!ok) Ibraya.message('Could not refresh', 'Check your internet connection and try again.');
+    } finally {
+      setTimeout(() => refreshBtn.classList.remove('spinning'), 400);
+    }
+  });
+  // And automatically: if the live connection is down, load the locations every 30 s instead.
+  setInterval(() => {
+    if (fleet && fleet.state && fleet.state !== 'joined' && document.visibilityState === 'visible') loadAll();
+  }, 30000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') { loadAll(); loadIncidents(); }
   });

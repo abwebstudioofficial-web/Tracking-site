@@ -329,6 +329,17 @@ a.my-tracking[href] { border-color: var(--accent-text); }
 .theme-toggle:hover { border-color: var(--accent-text); }
 .theme-toggle svg { width: 20px; height: 20px; }
 body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
+/* manual refresh, just above the theme switch */
+.refresh-btn {
+  position: fixed; right: 16px; bottom: 92px; z-index: 1200;
+  width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
+}
+.refresh-btn:hover { border-color: var(--accent-text); }
+.refresh-btn.spinning svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .leaflet-popup-content { font: 13px/1.45 system-ui, sans-serif; }
 .leaflet-popup-content b { font-size: 14px; }
@@ -350,4 +361,5 @@ body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
   .header-actions .btn { white-space: nowrap; }
   .toggle-list { display: inline-block; }
   body.admin-page .theme-toggle { bottom: 84px; } /* sit above the driver sheet */
+  .refresh-btn { bottom: 140px; }
 }
