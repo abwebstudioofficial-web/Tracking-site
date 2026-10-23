@@ -13,7 +13,7 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <!-- The page sits between the status bar and the back/home buttons (see capacitor.config.json);
+        <!-- The page sits between the status bar and the back/home buttons (see MainActivity);
              those bars get a white background with dark icons, like the site's bright theme. -->
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/white</item>
