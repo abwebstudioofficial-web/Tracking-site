@@ -1,14 +1,17 @@
 :root {
-  /* Bright theme (default) */
-  --bg: #f3f6f8;
+  /* Bright theme (default). Brand palette, purple to aqua:
+     #7400b8 #6930c3 #5e60ce #5390d9 #4ea8de #48bfe3 #56cfe1 #64dfdf #72efdd #80ffdb */
+  --bg: #f5f4fb;
   --panel: #ffffff;
-  --panel-2: #eef2f5;
-  --line: #dde3e8;
-  --text: #16202a;
-  --muted: #64717d;
-  --accent: #c1f11d;
-  --accent-ink: #12180a;
-  --accent-text: #4c6b00;
+  --panel-2: #f0eff9;
+  --line: #e0ddf0;
+  --text: #1b1530;
+  --muted: #6b6785;
+  --accent: linear-gradient(135deg, #7400b8 0%, #6930c3 45%, #5e60ce 100%);
+  --accent-solid: #6930c3;
+  --accent-ink: #ffffff;
+  --accent-text: #6930c3;
+  --accent-ring: rgba(105, 48, 195, .22);
   --danger: #d93838;
   --online: #1fae5b;
   --offline: #a3adb6;
@@ -18,13 +21,14 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0f1418;
-  --panel: #182027;
-  --panel-2: #212b33;
-  --line: #2c3842;
-  --text: #eef2f4;
-  --muted: #8b99a5;
-  --accent-text: #c1f11d;
+  --bg: #100d1c;
+  --panel: #1a1630;
+  --panel-2: #241f3d;
+  --line: #352d55;
+  --text: #f1effa;
+  --muted: #a09bbd;
+  --accent-text: #72efdd;
+  --accent-ring: rgba(114, 239, 221, .25);
   --danger: #ff5d5d;
   --online: #3ddc84;
   --offline: #6b7884;
@@ -393,7 +397,7 @@ body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
 .kind input { position: absolute; opacity: 0; pointer-events: none; }
 .kind b { display: block; font-size: 15px; }
 .kind span { display: block; font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
-.kind:has(input:checked) { border-color: var(--accent-text); background: var(--panel); box-shadow: 0 0 0 3px rgba(193, 241, 29, .35); }
+.kind:has(input:checked) { border-color: var(--accent-text); background: var(--panel); box-shadow: 0 0 0 3px var(--accent-ring); }
 .kind:has(input:focus-visible) { outline: 2px solid var(--accent-text); }
 .company-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .status-help { margin: 12px 0 0; font-size: 14px; color: var(--muted); }
@@ -410,7 +414,7 @@ body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
   border: 1px solid var(--line); background: var(--panel); border-radius: 99px; padding: 8px 14px; cursor: pointer;
   color: var(--muted); font-weight: 600; white-space: nowrap;
 }
-.hub-tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.hub-tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-solid); }
 .hub-tabs .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; margin-left: 4px; border-radius: 99px; background: var(--danger); color: #fff; font-size: 11px; }
 .details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 8px 0 0; }
 .details dt { color: var(--muted); font-size: 13px; }
@@ -475,7 +479,7 @@ body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
   display: block; text-align: center; padding: 10px 6px; border-radius: 12px; border: 2px solid var(--line);
   background: var(--panel-2); font-size: 13px; font-weight: 600; color: var(--text); margin: 0; cursor: pointer;
 }
-.seg input:checked + span { border-color: var(--accent-text); background: var(--panel); box-shadow: 0 0 0 3px rgba(193, 241, 29, .35); }
+.seg input:checked + span { border-color: var(--accent-text); background: var(--panel); box-shadow: 0 0 0 3px var(--accent-ring); }
 .field select.select { margin: 0; }
 body.sheet-open { overflow: hidden; }
 .sheet-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10, 16, 22, .45); display: grid; place-items: center; padding: 16px; }
@@ -534,7 +538,7 @@ body.sheet-open { overflow: hidden; }
 .trip-map { height: 240px; border-radius: 14px; border: 1px solid var(--line); margin: 0 0 10px; overflow: hidden; }
 .trip-pin span {
   display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; font: 700 12px system-ui, sans-serif;
-  background: #fff; color: #16202a; border: 2px solid #4c6b00; border-radius: 99px; padding: 3px 8px; box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+  background: #fff; color: #16202a; border: 2px solid #6930c3; border-radius: 99px; padding: 3px 8px; box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
 }
 .row.trip a { color: var(--accent-text); font-weight: 600; }
 .trip-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
