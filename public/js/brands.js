@@ -38,12 +38,12 @@ window.IbrayaBrands = (() => {
   // ---------- install steps (download page) ----------
   // Each step: English + Urdu, with an optional brand-specific note.
   const files = {
-    samsung: ['Open "My Files" → Downloads → tap Ibraya-Tracking.apk.', '"My Files" کھولیں → Downloads → Ibraya-Tracking.apk دبائیں۔'],
-    xiaomi: ['On Xiaomi "Open" often does nothing: open the "File Manager" app → Downloads → tap Ibraya-Tracking.apk.', 'شیاؤمی پر "Open" اکثر کام نہیں کرتا: "File Manager" کھولیں → Downloads → Ibraya-Tracking.apk دبائیں۔'],
-    oppo: ['Open the "File Manager" (or "Files") app → Downloads → tap Ibraya-Tracking.apk.', '"File Manager" کھولیں → Downloads → Ibraya-Tracking.apk دبائیں۔'],
-    vivo: ['Open the "File Manager" app → Downloads → tap Ibraya-Tracking.apk.', '"File Manager" کھولیں → Downloads → Ibraya-Tracking.apk دبائیں۔'],
-    infinix: ['Open the "Files" (or "File Manager") app → Downloads → tap Ibraya-Tracking.apk.', '"Files" کھولیں → Downloads → Ibraya-Tracking.apk دبائیں۔'],
-    other: ['Open the "Files" app → Downloads → tap Ibraya-Tracking.apk.', '"Files" کھولیں → Downloads → Ibraya-Tracking.apk دبائیں۔'],
+    samsung: ['Open "My Files" → Downloads → tap Transport-Hub.apk.', '"My Files" کھولیں → Downloads → Transport-Hub.apk دبائیں۔'],
+    xiaomi: ['On Xiaomi "Open" often does nothing: open the "File Manager" app → Downloads → tap Transport-Hub.apk.', 'شیاؤمی پر "Open" اکثر کام نہیں کرتا: "File Manager" کھولیں → Downloads → Transport-Hub.apk دبائیں۔'],
+    oppo: ['Open the "File Manager" (or "Files") app → Downloads → tap Transport-Hub.apk.', '"File Manager" کھولیں → Downloads → Transport-Hub.apk دبائیں۔'],
+    vivo: ['Open the "File Manager" app → Downloads → tap Transport-Hub.apk.', '"File Manager" کھولیں → Downloads → Transport-Hub.apk دبائیں۔'],
+    infinix: ['Open the "Files" (or "File Manager") app → Downloads → tap Transport-Hub.apk.', '"Files" کھولیں → Downloads → Transport-Hub.apk دبائیں۔'],
+    other: ['Open the "Files" app → Downloads → tap Transport-Hub.apk.', '"Files" کھولیں → Downloads → Transport-Hub.apk دبائیں۔'],
   };
   const unknownSources = {
     oppo: ['Some Oppo / Realme phones then ask for your screen lock or account password: enter it.', 'کچھ اوپو / ریئل می فون اسکرین لاک یا اکاؤنٹ پاس ورڈ مانگتے ہیں: وہ لکھ دیں۔'],
@@ -83,18 +83,18 @@ window.IbrayaBrands = (() => {
   };
   // Extra battery setting some brands have on top of Android's own (which the app asks for).
   const battery = {
-    samsung: ['Also: Apps → Ibraya Tracking → Battery → "Unrestricted".', 'یہ بھی: Apps → Ibraya Tracking → Battery → "Unrestricted"۔'],
+    samsung: ['Also: Apps → Transport Hub → Battery → "Unrestricted".', 'یہ بھی: Apps → Transport Hub → Battery → "Unrestricted"۔'],
     xiaomi: ['Also: App info → Battery saver → "No restrictions".', 'یہ بھی: App info → Battery saver → "No restrictions"۔'],
     oppo: ['Also: App info → Battery usage → turn on "Allow background activity".', 'یہ بھی: App info → Battery usage → "Allow background activity" آن کریں۔'],
-    vivo: ['Also: Settings → Battery → Background power consumption → Ibraya Tracking → "Allow".', 'یہ بھی: Settings → Battery → Background power consumption → Ibraya Tracking → "Allow"۔'],
+    vivo: ['Also: Settings → Battery → Background power consumption → Transport Hub → "Allow".', 'یہ بھی: Settings → Battery → Background power consumption → Transport Hub → "Allow"۔'],
     infinix: ['Also: App info → Battery → "Allow background activity" (or "No restrictions").', 'یہ بھی: App info → Battery → "Allow background activity"۔'],
   };
   // Brands whose own "autostart" switch must be on, or tracking won't restart after a reboot.
   const autostart = {
-    xiaomi: ['Find Ibraya Tracking and turn on "Autostart".', 'Ibraya Tracking ڈھونڈیں اور "Autostart" آن کریں۔'],
-    oppo: ['Find Ibraya Tracking and turn on "Auto launch" (or "Auto startup").', 'Ibraya Tracking ڈھونڈیں اور "Auto launch" آن کریں۔'],
-    vivo: ['Find Ibraya Tracking and turn on "Autostart" (or "Background startup").', 'Ibraya Tracking ڈھونڈیں اور "Autostart" آن کریں۔'],
-    infinix: ['In Phone Master → "Auto-start management": turn on Ibraya Tracking.', 'Phone Master → "Auto-start management" میں Ibraya Tracking آن کریں۔'],
+    xiaomi: ['Find Transport Hub and turn on "Autostart".', 'Transport Hub ڈھونڈیں اور "Autostart" آن کریں۔'],
+    oppo: ['Find Transport Hub and turn on "Auto launch" (or "Auto startup").', 'Transport Hub ڈھونڈیں اور "Auto launch" آن کریں۔'],
+    vivo: ['Find Transport Hub and turn on "Autostart" (or "Background startup").', 'Transport Hub ڈھونڈیں اور "Autostart" آن کریں۔'],
+    infinix: ['In Phone Master → "Auto-start management": turn on Transport Hub.', 'Phone Master → "Auto-start management" میں Transport Hub آن کریں۔'],
   };
 
   // Urdu text with English menu names inside: HTML-escape it and keep each English part

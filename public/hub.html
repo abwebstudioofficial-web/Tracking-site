@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Hub · Transport Hub</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <script src="/js/theme.js"></script>
+</head>
+<body class="hub-page">
+  <header class="hub-top">
+    <div class="brand">
+      <div class="brand-mark"><img src="/img/logo.png" alt="Transport Hub logo"></div>
+      <div>Transport Hub<small id="top-company">Loads · Trucks · Tracking</small></div>
+    </div>
+    <div class="header-actions">
+      <a class="btn btn-ghost" id="to-fleet" href="/admin" hidden>Fleet map</a>
+      <button class="btn btn-ghost" id="logout">Sign out</button>
+    </div>
+  </header>
+  <main class="hub" id="main">
+    <p class="hint">Loading… · لوڈ ہو رہا ہے</p>
+  </main>
+  <script src="/vendor/supabase.js"></script>
+  <script src="/js/config.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/hub.js"></script>
+</body>
+</html>

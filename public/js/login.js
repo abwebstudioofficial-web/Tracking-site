@@ -44,11 +44,11 @@
       document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
       $('name-field').hidden = mode !== 'register';
       $('forgot-row').hidden = mode === 'register';
-      $('submit').textContent = mode === 'register' ? 'Create account' : 'Sign in';
+      $('submit').textContent = mode === 'register' ? 'Create business account' : 'Sign in';
       form.password.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
       $('hint').textContent = mode === 'register'
-        ? 'Drivers: use the phone number you carry while driving.'
-        : 'Drivers: sign in with the phone number you registered with.';
+        ? 'Next you tell us about your company. Drivers don\'t need an account here: their company adds them.'
+        : 'For shippers, carriers, brokers, dispatchers and admins. Drivers don\'t need a password.';
       $('error').textContent = '';
     });
   });
@@ -70,7 +70,7 @@
           const { data, error } = await sb.auth.signUp({
             email: identity,
             password,
-            options: { data: { name }, emailRedirectTo: `${location.origin}/login` },
+            options: { data: { name, account: 'business' }, emailRedirectTo: `${location.origin}/login` },
           });
           if (error) throw error;
           // Supabase hides "already registered" for privacy; an empty identities list means exactly that.
@@ -133,7 +133,7 @@
         result = await Ibraya.account('phone-login', asking ? { phone, name } : { phone });
       } catch (err) {
         if (err.data && err.data.needsPassword) {
-          // The admin's number: switch to the password form.
+          // An admin or business number: switch to the password form.
           show('view-main');
           form.identity.value = phoneForm.phone.value;
           form.password.focus();
@@ -167,7 +167,7 @@
   // Only show the Google button once it has been switched on in Supabase.
   fetch(`${IBRAYA.supabaseUrl}/auth/v1/settings`, { headers: { apikey: IBRAYA.supabaseKey } })
     .then((r) => r.json())
-    // Google doesn't allow its sign-in inside apps, so the Ibraya app shows phone/email only.
+    // Google doesn't allow its sign-in inside apps, so the app shows phone/email only.
     .then((s) => { if (s?.external?.google && !Ibraya.inApp) $('google-area').hidden = false; })
     .catch(() => {});
 
@@ -187,7 +187,7 @@
       const notice = $('forgot-notice');
       if (!identity.includes('@')) {
         if (!Ibraya.normalizePhone(identity)) throw new Error('Enter a valid phone number or email');
-        notice.textContent = 'Phone accounts: ask your admin to set a new password for you. They can do it from the admin page.';
+        notice.textContent = 'Phone accounts: ask a Transport Hub admin to set a new password for you.';
         notice.hidden = false;
         return;
       }
@@ -230,7 +230,7 @@
   show('view-phone');
 
   if (Ibraya.inApp) {
-    $('hint').textContent = 'Admin sign-in. Drivers don\'t need a password. (Admin signed up with Google? Tap "Forgot password?" to set a password for your Gmail.)';
+    $('hint').textContent = 'For shippers, carriers, brokers, dispatchers and admins. Drivers don\'t need a password. (Signed up with Google? Tap "Forgot password?" to set a password for your Gmail.)';
   }
 
   // ---------- on load ----------

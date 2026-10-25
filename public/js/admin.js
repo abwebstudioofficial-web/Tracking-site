@@ -867,7 +867,7 @@
     const sure = await Ibraya.dialog({
       title: on ? `Track ${u.name}?` : `Stop tracking ${u.name}?`,
       message: on
-        ? 'Their phone will share its location like a driver\'s: map, history and alerts. They need the Ibraya app on their phone, signed in.'
+        ? 'Their phone will share its location like a driver\'s: map, history and alerts. They need the Transport Hub app on their phone, signed in.'
         : 'Their location will no longer be shared. Their past history is kept.',
       okText: on ? 'Track' : 'Stop tracking',
     });
@@ -892,7 +892,7 @@
     banner.hidden = false;
     if (!Ibraya.tracker) {
       banner.removeAttribute('href');
-      banner.textContent = '📍 Your location is shared with the main admin. Open the Ibraya app on your phone and sign in there.';
+      banner.textContent = '📍 Your location is shared with the main admin. Open the Transport Hub app on your phone and sign in there.';
       return;
     }
     try {
@@ -1017,6 +1017,8 @@
 
   // ---------- data + realtime ----------
   function upsertUser(row) {
+    // Business accounts (shippers, brokers, ...) aren't tracked: they're on the hub, not the map.
+    if (row.role === 'business') return removeUser(row.id);
     const u = fromRow(row);
     // Another admin took away my admin role: go to the driver page.
     if (me && u.id === me.id && u.role !== 'admin') return location.replace('/driver');
