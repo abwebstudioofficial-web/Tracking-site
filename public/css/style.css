@@ -439,3 +439,75 @@ body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
   .details dd { margin-bottom: 8px; }
 }
 .hub-link { text-decoration: none; }
+
+/* ---------- Transport Hub: load board ---------- */
+.small { font-size: 12.5px; }
+.filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 12px; }
+.filters .select { padding: 9px 10px; font-size: 14px; }
+.load-list { display: grid; gap: 10px; }
+.load-card {
+  display: block; width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); padding: 12px 14px;
+}
+.load-card:hover { border-color: var(--accent-text); }
+.load-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.load-top .pill { margin-left: auto; }
+.load-body { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
+.load-main { min-width: 0; display: grid; gap: 3px; }
+.load-main .pill { justify-self: start; margin-top: 4px; }
+.load-side { text-align: right; flex: none; }
+.price { font-weight: 800; font-size: 17px; white-space: nowrap; }
+.price small { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.route { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 16px; }
+.route small { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+.route .arrow { color: var(--accent-text); font-weight: 800; }
+.tag { font-size: 11px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; }
+.tag.import { background: #dbeafe; color: #1d4ed8; }
+.tag.export { background: #ede9fe; color: #6d28d9; }
+.tag.domestic { background: #e7eef3; color: #36515f; }
+:root[data-theme="dark"] .tag.import { background: #172a4a; color: #93c5fd; }
+:root[data-theme="dark"] .tag.export { background: #2a1d4a; color: #c4b5fd; }
+:root[data-theme="dark"] .tag.domestic { background: #22303a; color: #a9bfcc; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span {
+  display: block; text-align: center; padding: 10px 6px; border-radius: 12px; border: 2px solid var(--line);
+  background: var(--panel-2); font-size: 13px; font-weight: 600; color: var(--text); margin: 0; cursor: pointer;
+}
+.seg input:checked + span { border-color: var(--accent-text); background: var(--panel); box-shadow: 0 0 0 3px rgba(193, 241, 29, .35); }
+.field select.select { margin: 0; }
+body.sheet-open { overflow: hidden; }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(10, 16, 22, .45); display: grid; place-items: center; padding: 16px; }
+.sheet {
+  width: 100%; max-width: 620px; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 18px 50px rgba(0, 0, 0, .3);
+}
+.sheet-body { padding: 18px 18px 20px; position: relative; }
+.sheet-body h3 { font-size: 14px; margin: 18px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.sheet-title { margin: 6px 40px 10px 0; font-size: 18px; }
+.sheet-body > .load-top { margin-right: 44px; }
+.sheet-close {
+  position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 16px;
+}
+.contact-card { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--accent-text); background: var(--panel-2); display: grid; gap: 4px; }
+.contact-card a { color: var(--accent-text); font-weight: 700; }
+.contact-card .btn.wa { justify-self: start; margin-top: 6px; background: #25d366; color: #fff; text-decoration: none; }
+.bid-form { margin-top: 16px; padding: 14px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--line); }
+.bid-form h3 { margin-top: 0; }
+.bid-form .field input { background: var(--panel); }
+.row.bid.mine { border-color: var(--accent-text); }
+.row.bid.accepted { border-color: var(--online); }
+.row.bid.declined, .row.bid.withdrawn { opacity: .7; }
+@media (max-width: 700px) {
+  .filters { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .load-body { flex-direction: column; gap: 6px; }
+  .load-side { text-align: left; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .load-side .price small { display: inline; margin-right: 6px; }
+  .sheet-backdrop { padding: 0; place-items: end stretch; }
+  .sheet { max-width: none; max-height: 92vh; border-radius: 20px 20px 0 0; }
+  .seg { grid-template-columns: 1fr; }
+}
