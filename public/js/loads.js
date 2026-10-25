@@ -54,6 +54,7 @@ window.HubLoads = (() => {
   let live = null;
   let refreshTimer = null;
   let tripsTimer = null;
+  let feePerTrip = null; // Transport Hub's fee, shown to carriers before they bid
   let tripsMap = null;
 
   function route(l) {
@@ -274,6 +275,7 @@ window.HubLoads = (() => {
             <label class="field"><span>Total price (Rs)${l.trucks > 1 ? ` for all ${l.trucks} trucks` : ''}</span><input name="amount" type="number" min="1000" step="500" inputmode="numeric" value="${myBid && myBid.status === 'active' ? myBid.amount : ''}" placeholder="${l.lowest ? `Lowest now ${l.lowest}` : 'e.g. 175000'}"></label>
             <label class="field"><span>Note <i>(optional)</i></span><input name="note" maxlength="300" value="${myBid && myBid.status === 'active' ? esc(myBid.note) : ''}" placeholder="e.g. Truck ready in Karachi"></label>
           </div>
+          ${feePerTrip ? `<p class="muted small">Transport Hub fee: ${rs(feePerTrip)} per truck trip${l.trucks > 1 ? ` (${rs(feePerTrip * l.trucks)} for ${l.trucks} trucks)` : ''}, charged to the carrier after delivery.</p>` : ''}
           <div class="error" id="bid-error"></div>
           <div class="form-actions">
             ${myBid && myBid.status === 'active' ? '<button type="button" class="btn btn-ghost btn-small" id="withdraw">Withdraw bid</button>' : ''}
@@ -450,9 +452,14 @@ window.HubLoads = (() => {
       .subscribe();
   }
 
+  function loadFee() {
+    if (feePerTrip == null && ctx) ctx.rpc('platform_fee').then((v) => { feePerTrip = v; }).catch(() => {});
+  }
+
   function render(tab, context) {
     ctx = { ...context, tab };
     listen();
+    loadFee();
     if (tab === 'board') return renderBoard();
     if (tab === 'post') return renderPost();
     if (tab === 'myloads' || tab === 'mybids') return renderList(tab);
@@ -462,6 +469,7 @@ window.HubLoads = (() => {
   function open(id, context) {
     if (!ctx) ctx = { ...context, tab: null };
     listen();
+    loadFee();
     openDetail(id);
   }
 
