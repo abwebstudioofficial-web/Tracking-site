@@ -249,7 +249,7 @@ button, input, select { font: inherit; color: inherit; }
 
 #map { height: 100%; width: 100%; background: #dfe5e8; }
 :root[data-theme="dark"] #map { background: #1b2228; }
-:root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
+:root[data-theme="dark"] #map.raster-map .maplibregl-canvas { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
 .map-wrap { position: relative; min-height: 0; }
 .toggle-list { display: none; }
 
@@ -347,6 +347,13 @@ body.admin-page .theme-toggle { bottom: 36px; } /* clear the map credits */
 
 .leaflet-popup-content { font: 13px/1.45 system-ui, sans-serif; }
 .leaflet-popup-content b { font-size: 14px; }
+/* admin map (MapLibre) */
+.maplibregl-popup-content { font: 13px/1.45 system-ui, sans-serif; color: #16202a; border-radius: 12px; padding: 12px 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, .2); }
+.maplibregl-popup-content b { font-size: 14px; }
+.maplibregl-popup-content .link { color: #6930c3; }
+.maplibregl-popup-close-button { font-size: 18px; padding: 0 6px; }
+.ib-marker { cursor: pointer; }
+.maplibregl-ctrl-top-right { top: 0; right: 0; }
 .nearby { margin: 8px 0 6px; padding-top: 6px; border-top: 1px solid #e3e8ec; line-height: 1.7; }
 .nearby .near { padding: 0; font-size: 13px; }
 .muted { color: #64717d; }
