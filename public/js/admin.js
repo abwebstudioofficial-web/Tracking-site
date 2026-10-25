@@ -94,12 +94,27 @@
   const distance = (m) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`);
 
   // ---------- map ----------
-  const map = L.map('map', { zoomControl: false }).setView([30.3753, 69.3451], 5);
-  L.control.zoom({ position: 'topright' }).addTo(map);
+  // MapLibre (see js/glmap.js): drag with the right mouse button or two fingers to rotate,
+  // Ctrl/two-finger drag up to tilt and see the buildings in 3D; the compass turns it back north.
+  const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+  const BLANK_STYLE = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#dfe5e8' } }] };
+  const map = GL.createMap('map', { center: [30.3753, 69.3451], zoom: 5, style: BLANK_STYLE });
+  map.gl.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  map.gl.addControl(new maplibregl.AttributionControl({
+    compact: true,
+    customAttribution: `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`,
+  }), 'bottom-right');
   // Base map: OpenFreeMap (free, no API key), drawn in the browser by MapLibre so we can
   // choose the labels: English name on top, Urdu (or other local script) underneath.
   // Falls back to plain OpenStreetMap tiles if OpenFreeMap can't be reached.
-  const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+  // Our own lines (history routes, Follow live trail) are kept when the base map is swapped in.
+  const keepOurLayers = (prev, next) => {
+    if (!prev) return next;
+    const ours = (id) => id.startsWith('ib-');
+    Object.entries(prev.sources).filter(([id]) => ours(id)).forEach(([id, src]) => { next.sources[id] = src; });
+    next.layers.push(...prev.layers.filter((l) => ours(l.id)));
+    return next;
+  };
 
   function bilingualLabel(separator) {
     return ['let',
@@ -113,7 +128,6 @@
 
   async function addBaseMap() {
     try {
-      if (!window.maplibregl || !L.maplibreGL) throw new Error('MapLibre not loaded');
       // Joins Urdu/Arabic letters correctly and draws them right-to-left.
       maplibregl.setRTLTextPlugin(`${location.origin}/vendor/rtl-text.js`, true).catch(() => {});
       const res = await fetch('https://tiles.openfreemap.org/styles/liberty');
@@ -126,20 +140,25 @@
         // Point labels (cities) get two lines; labels along roads/rivers stay on one line.
         layer.layout['text-field'] = bilingualLabel(text.includes('\\n') ? '\n' : ' ');
       }
-      L.maplibreGL({ style }).addTo(map);
-      map.attributionControl.addAttribution(
-        `<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ${OSM_ATTR}`
-      );
+      map.setStyle(style, { transformStyle: keepOurLayers });
     } catch {
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: OSM_ATTR }).addTo(map);
+      map.getContainer().classList.add('raster-map');
+      map.setStyle({
+        version: 8,
+        sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: OSM_ATTR } },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+      }, { transformStyle: keepOurLayers });
     }
   }
   addBaseMap();
 
   const markers = new Map();
   let following = null; // "Follow live": { id, line, points } (see the follow section)
-  const fleetLayer = L.layerGroup().addTo(map); // live trucks (hidden while a trip history is shown)
+  const fleetLayer = GL.layerGroup().addTo(map); // live trucks (hidden while a trip history is shown)
   map.on('dragstart', () => { userMovedMap = true; });
+  map.on('rotatestart', () => { userMovedMap = true; });
+  // Turning the map: every truck keeps pointing the way it really drives.
+  map.on('rotate', () => GL.rotateWithMap(map.getContainer(), map.getBearing()));
   map.getContainer().addEventListener('wheel', () => { userMovedMap = true; }, { passive: true });
 
   // A top-down truck that turns to face the direction it's driving:
@@ -194,7 +213,7 @@
 
   function truckIcon(u) {
     const heading = u.location && u.location.heading != null ? u.location.heading : 0;
-    return L.divIcon({
+    return GL.divIcon({
       className: '',
       iconSize: [44, 44],
       iconAnchor: [22, 22],
@@ -202,7 +221,7 @@
       html: `
         <div class="truck ${statusOf(u)}">
           <div class="pulse"></div>
-          <div class="truck-rot" style="transform:rotate(${heading}deg)">${u.role === 'admin' ? CAR_SVG : truckSvg(u)}</div>
+          <div class="truck-rot" data-heading="${heading}" style="transform:rotate(${heading - map.getBearing()}deg)">${u.role === 'admin' ? CAR_SVG : truckSvg(u)}</div>
           <div class="truck-label${u.truckSize === '40ft' && u.role !== 'admin' ? ' long' : ''}">${esc(u.name)}${nameTags(u)}${chip(u)}</div>
         </div>`,
     });
@@ -246,7 +265,7 @@
   const GLIDE_MIN_MS = 1000;
   const GLIDE_MAX_MS = 6000;
   function glideTo(m, latlng) {
-    const to = L.latLng(latlng);
+    const to = GL.latLng(latlng);
     // Same position again (a parked truck's check-in, or the regular redraw): keep gliding as is.
     if (m._target ? m._target.equals(to) : m.getLatLng().equals(to)) return;
     m._target = to;
@@ -273,7 +292,7 @@
     }
     const latlng = [u.location.lat, u.location.lng];
     if (!m) {
-      m = L.marker(latlng, { icon: truckIcon(u) }).addTo(fleetLayer).bindPopup(popupHtml(u));
+      m = GL.marker(latlng, { icon: truckIcon(u) }).addTo(fleetLayer).bindPopup(popupHtml(u));
       m.on('click', () => select(u.id, false));
       markers.set(u.id, m);
       if (!userMovedMap) fitAll();
@@ -289,7 +308,7 @@
     const pts = [...markers.values()].map((m) => m.getLatLng());
     if (!pts.length) return;
     if (pts.length === 1) map.setView(pts[0], 14);
-    else map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
+    else map.fitBounds(GL.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
   }
 
   // Was the driver's SIM found in the phone they use? (Checked by the app.)
@@ -639,7 +658,7 @@
   const GAP_MS = 5 * 60 * 1000;      // the app saves a point at least every 2 min: a longer silence is a gap
   const STOP_MIN_MS = 3 * 60 * 1000; // standing still at least this long counts as a stop
   const MOVING_MPS = ACTIVE_KMH / 3.6;
-  const historyLayer = L.layerGroup();
+  const historyLayer = GL.layerGroup();
   const ROUTE_COLOR = '#2563eb';
   let history = null; // { id, day, points, entries }
   let historyTimer = null;
@@ -740,7 +759,7 @@
     return `<div class="tl ${e.type}" data-entry="${i}"><b>${e.title}</b><span>${e.text}</span></div>`;
   }
 
-  const dotIcon = (cls, label) => L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: `<div class="hist-dot ${cls}">${label || ''}</div>` });
+  const dotIcon = (cls, label) => GL.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: `<div class="hist-dot ${cls}">${label || ''}</div>` });
 
   function drawHistory() {
     historyLayer.clearLayers();
@@ -750,28 +769,28 @@
     entries.forEach((e, i) => {
       let layer;
       if (e.type === 'drive') {
-        layer = L.polyline(latlngs(e.points), { color: ROUTE_COLOR, weight: 5, opacity: 0.85 });
+        layer = GL.polyline(latlngs(e.points), { color: ROUTE_COLOR, weight: 5, opacity: 0.85 });
         layer.on('click', (ev) => {
           // Exact time at the clicked spot: the nearest saved point.
           let best = e.points[0];
           e.points.forEach((p) => { if (map.distance(ev.latlng, [p.lat, p.lng]) < map.distance(ev.latlng, [best.lat, best.lng])) best = p; });
-          L.popup().setLatLng([best.lat, best.lng])
+          GL.popup().setLatLng([best.lat, best.lng])
             .setContent(`<b>${hms(best.t)}</b>${best.speed != null ? `<br>${speedText(Math.round(best.speed * 3.6))}` : ''}`)
             .openOn(map);
         });
       } else if (e.type === 'stop') {
-        layer = L.marker([e.at.lat, e.at.lng], { icon: dotIcon('stop', 'P') })
+        layer = GL.marker([e.at.lat, e.at.lng], { icon: dotIcon('stop', 'P') })
           .bindPopup(`<b>Stopped ${duration(e.to - e.from)}</b><br>${hm(e.from)}–${hm(e.to)}`);
       } else if (e.type === 'gap') {
-        layer = L.polyline(latlngs([e.a, e.b]), { color: '#d93838', weight: 3, dashArray: '6 8' })
+        layer = GL.polyline(latlngs([e.a, e.b]), { color: '#d93838', weight: 3, dashArray: '6 8' })
           .bindPopup(`<b>No signal ${duration(e.to - e.from)}</b><br>${hm(e.from)}–${hm(e.to)}<br>Moved ${distance(e.moved)} (straight line)`);
       }
       if (layer) { layer.entry = i; historyLayer.addLayer(layer); e.layer = layer; }
     });
     const first = points[0];
     const last = points[points.length - 1];
-    historyLayer.addLayer(L.marker([first.lat, first.lng], { icon: dotIcon('start', 'A'), zIndexOffset: 500 }).bindPopup(`<b>First point</b><br>${hms(first.t)}`));
-    historyLayer.addLayer(L.marker([last.lat, last.lng], { icon: dotIcon('end', 'B'), zIndexOffset: 500 }).bindPopup(`<b>Last point</b><br>${hms(last.t)}`));
+    historyLayer.addLayer(GL.marker([first.lat, first.lng], { icon: dotIcon('start', 'A'), zIndexOffset: 500 }).bindPopup(`<b>First point</b><br>${hms(first.t)}`));
+    historyLayer.addLayer(GL.marker([last.lat, last.lng], { icon: dotIcon('end', 'B'), zIndexOffset: 500 }).bindPopup(`<b>Last point</b><br>${hms(last.t)}`));
   }
 
   async function loadHistory(fit) {
@@ -807,7 +826,7 @@
          <div class="tl end"><b>Last point ${hms(lastT)}</b></div>`
       : `${entries.map(entryHtml).join('')}<p class="hint">No route saved on this day.</p>`;
     drawHistory();
-    if (fit && points.length) map.fitBounds(L.latLngBounds(points.map((p) => [p.lat, p.lng])), { ...fitPadding(), maxZoom: 16 });
+    if (fit && points.length) map.fitBounds(GL.latLngBounds(points.map((p) => [p.lat, p.lng])), { ...fitPadding(), maxZoom: 16 });
   }
 
   function openHistory(id, day) {
@@ -931,7 +950,7 @@
     const u = users.get(id);
     if (!u || !u.location) return;
     stopFollow();
-    following = { id, points: [], line: L.polyline([], { color: '#2563eb', weight: 5, opacity: 0.7 }).addTo(map) };
+    following = { id, points: [], line: GL.polyline([], { color: '#2563eb', weight: 5, opacity: 0.7 }).addTo(map) };
     userMovedMap = true;
     map.setView([u.location.lat, u.location.lng], Math.max(map.getZoom(), 15));
     document.getElementById('follow-name').textContent = u.name;
