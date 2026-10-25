@@ -21,6 +21,7 @@ app.get('/', (req, res) => res.redirect('/login'));
 app.get('/login', page('login.html'));
 app.get('/driver', page('driver.html'));
 app.get('/admin', page('admin.html'));
+app.get('/hub', page('hub.html'));
 app.get('/download', page('download.html'));
 
 // The Android app is built by GitHub (.github/workflows/android.yml) and published as the latest
@@ -46,7 +47,7 @@ app.get('/download/ibraya-tracking.apk', async (req, res) => {
     if (!apk) return res.status(404).send('The app has not been published yet.');
     res.set({
       'Content-Type': 'application/vnd.android.package-archive',
-      'Content-Disposition': 'attachment; filename="Ibraya-Tracking.apk"',
+      'Content-Disposition': 'attachment; filename="Transport-Hub.apk"',
       'Content-Length': apk.length,
       'Cache-Control': 'no-cache',
     });
@@ -72,4 +73,4 @@ app.get('/vendor/supabase.js', (req, res) =>
   res.sendFile(path.join(path.dirname(require.resolve('@supabase/supabase-js/package.json')), 'dist/umd/supabase.js'))
 );
 
-app.listen(PORT, () => console.log(`Ibraya Logistics Tracking running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Transport Hub running on http://localhost:${PORT}`));

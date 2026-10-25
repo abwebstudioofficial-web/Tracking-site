@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Ibraya Tracking</string>
-    <string name="title_activity_main">Ibraya Tracking</string>
+    <string name="app_name">Transport Hub</string>
+    <string name="title_activity_main">Transport Hub</string>
     <string name="package_name">com.ibraya.tracking</string>
     <string name="custom_url_scheme">com.ibraya.tracking</string>
 </resources>

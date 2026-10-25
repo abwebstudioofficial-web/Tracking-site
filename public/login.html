@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#ffffff">
-  <title>Sign in · Ibraya Logistics Tracking</title>
+  <title>Sign in · Transport Hub</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
@@ -16,8 +16,8 @@
   <main class="center-page">
     <div class="card">
       <div class="brand">
-        <div class="brand-mark"><img src="/img/logo.png" alt="Ibraya Logistics logo"></div>
-        <div>Ibraya Logistics<small>Tracking</small></div>
+        <div class="brand-mark"><img src="/img/logo.png" alt="Transport Hub logo"></div>
+        <div>Transport Hub<small>Loads · Trucks · Tracking</small></div>
       </div>
 
       <!-- Drivers: phone number only -->
@@ -36,19 +36,20 @@
           <div class="error" id="phone-error"></div>
           <button class="btn" id="phone-submit">Sign in · سائن ان کریں</button>
         </form>
-        <p class="link-row"><button type="button" class="link" id="to-admin">Admin? Sign in with password</button></p>
+        <p class="hint" style="margin-bottom:4px">Drivers: phone number only. · ڈرائیور: صرف فون نمبر۔</p>
+        <p class="link-row"><button type="button" class="link" id="to-admin">Shipper, carrier, broker or dispatcher? Business sign-in</button></p>
       </section>
 
-      <!-- Admin (and email accounts): sign in / create account with a password -->
+      <!-- Business accounts and admins: sign in / create account with a password -->
       <section id="view-main" hidden>
         <div class="tabs">
           <button type="button" data-mode="login" class="active">Sign in</button>
-          <button type="button" data-mode="register">Create account</button>
+          <button type="button" data-mode="register">Create business account</button>
         </div>
 
         <form id="form" novalidate>
           <label class="field" id="name-field" hidden>
-            <span>Full name</span>
+            <span>Your full name</span>
             <input name="name" autocomplete="name" placeholder="e.g. Muhammad Ali">
           </label>
           <label class="field">
@@ -71,7 +72,7 @@
             Continue with Google
           </button>
         </div>
-        <p class="hint" id="hint">Admin sign-in. Drivers don't need a password.</p>
+        <p class="hint" id="hint">For shippers, carriers, brokers, dispatchers and admins. Drivers don't need a password.</p>
         <p class="link-row"><button type="button" class="link" id="to-phone">Driver? Sign in with phone number</button></p>
       </section>
 

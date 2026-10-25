@@ -1,6 +1,6 @@
 {
   "appId": "com.ibraya.tracking",
-  "appName": "Ibraya Tracking",
+  "appName": "Transport Hub",
   "webDir": "www",
   "server": {
     "url": "https://tracking-site.up.railway.app/login",

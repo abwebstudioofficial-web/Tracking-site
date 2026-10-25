@@ -1,8 +1,8 @@
 // Account actions that need Supabase admin rights:
 //  - phone-login:     drivers sign in with just their phone number (no password, no SMS).
-//                     New numbers are asked for a name and get an account. Admin accounts
-//                     are refused here and must use their password.
-//  - phone-signup:    create a phone + password account (free, no SMS)
+//                     New numbers are asked for a name and get an account. Admin and business
+//                     accounts are refused here and must use their password.
+//  - phone-signup:    create a business account: phone + password (free, no SMS)
 //  - delete-user:     admin removes a user
 //  - reset-password:  admin sets a new password for a user (e.g. a driver who forgot theirs)
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -76,6 +76,9 @@ Deno.serve(async (req) => {
         if (profile.role === 'admin') {
           return json({ error: 'This is the admin account. Sign in with your password.', needsPassword: true }, 403);
         }
+        if (profile.role === 'business') {
+          return json({ error: 'This is a business account. Sign in with your password.', needsPassword: true }, 403);
+        }
         const { data: found, error } = await admin.auth.admin.getUserById(profile.id);
         if (error || !found.user?.email) return json({ error: 'Could not sign in. Please try again.' }, 400);
         email = found.user.email;
@@ -114,7 +117,7 @@ Deno.serve(async (req) => {
         email: `${phone.slice(1)}@${PHONE_DOMAIN}`,
         password,
         email_confirm: true,
-        user_metadata: { name },
+        user_metadata: { name, account: 'business' },
       });
       if (error) {
         const exists = /already|registered|exists/i.test(error.message);

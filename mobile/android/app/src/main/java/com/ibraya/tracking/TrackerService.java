@@ -41,7 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Keeps sending the phone's location to Ibraya Logistics, 24/7, as an Android foreground
+ * Keeps sending the phone's location to Transport Hub, 24/7, as an Android foreground
  * service (the same kind navigation apps use). It keeps running with the screen off, after the
  * app is closed, and is restarted after a reboot by {@link BootReceiver}.
  *
@@ -541,7 +541,7 @@ public class TrackerService extends Service implements LocationListener {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = getSystemService(NotificationManager.class);
         NotificationChannel tracking = new NotificationChannel(CHANNEL_ID, "Location tracking", NotificationManager.IMPORTANCE_LOW);
-        tracking.setDescription("Shows while Ibraya Logistics is tracking this truck");
+        tracking.setDescription("Shows while Transport Hub is tracking this truck");
         tracking.setShowBadge(false);
         nm.createNotificationChannel(tracking);
         NotificationChannel alerts = new NotificationChannel(CHANNEL_ALERTS, "Tracking alerts", NotificationManager.IMPORTANCE_HIGH);
@@ -558,8 +558,8 @@ public class TrackerService extends Service implements LocationListener {
     private Notification buildNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_tracking)
-            .setContentTitle("Ibraya Tracking is on")
-            .setContentText("Sharing this truck's location with Ibraya Logistics")
+            .setContentTitle("Transport Hub tracking is on")
+            .setContentText("Sharing this truck's location with your transport company")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
@@ -574,7 +574,7 @@ public class TrackerService extends Service implements LocationListener {
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_stat_tracking)
             .setContentTitle("Tracking stopped")
-            .setContentText("Open Ibraya Tracking and sign in again.")
+            .setContentText("Open Transport Hub and sign in again.")
             .setAutoCancel(true)
             .setContentIntent(openAppIntent())
             .build();

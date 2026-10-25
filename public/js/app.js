@@ -9,7 +9,7 @@ window.Ibraya = (() => {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 
-  // Inside the Ibraya Android app the page can talk to the native 24/7 tracking service.
+  // Inside the Transport Hub Android app the page can talk to the native 24/7 tracking service.
   const cap = window.Capacitor;
   const inApp = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
   const tracker = inApp && cap.Plugins ? cap.Plugins.IbrayaTracker || null : null;
@@ -23,6 +23,15 @@ window.Ibraya = (() => {
     export_driver: 'Export Driver',
     admin: 'Admin',
   };
+
+  // Transport Hub: kinds of business and the roles people have inside one.
+  const COMPANY_KINDS = {
+    shipper: { en: 'Shipper', ur: 'شپر', about: 'I have goods to move · مجھے سامان بھیجنا ہے' },
+    carrier: { en: 'Carrier', ur: 'کیریئر', about: 'I own trucks · میرے پاس ٹرک ہیں' },
+    broker: { en: 'Broker', ur: 'بروکر', about: 'I arrange transport for others · میں دوسروں کے لیے ٹرانسپورٹ کا انتظام کرتا ہوں' },
+    dispatcher: { en: 'Dispatcher', ur: 'ڈسپیچر', about: 'I find loads for carriers · میں کیریئرز کے لیے لوڈ ڈھونڈتا ہوں' },
+  };
+  const MEMBER_ROLES = { owner: 'Owner', manager: 'Manager', driver: 'Driver' };
 
   // Same rules as public.normalize_phone() in the database:
   // 03001234567 / 3001234567 / +92 300 1234567 -> +923001234567
@@ -92,7 +101,7 @@ window.Ibraya = (() => {
     return data;
   }
 
-  const homeFor = (profile) => (profile.role === 'admin' ? '/admin' : '/driver');
+  const homeFor = (profile) => (profile.role === 'admin' ? '/admin' : profile.role === 'business' ? '/hub' : '/driver');
 
   // The sign-in was ended on the server (e.g. a password was set for this account when it was
   // made admin), but this phone still holds it: forget it and ask to sign in again.
@@ -124,9 +133,11 @@ window.Ibraya = (() => {
       return null;
     }
     const home = homeFor(profile);
-    // A tracked admin may also open the driver page, to finish the phone's tracking setup.
+    // A tracked admin may also open the driver page, to finish the phone's tracking setup,
+    // and admins use the hub too (their company, and checking new companies).
     const trackedAdminSetup = page === '/driver' && profile.role === 'admin' && profile.tracked;
-    if (home !== page && !trackedAdminSetup) {
+    const adminHub = page === '/hub' && profile.role === 'admin';
+    if (home !== page && !trackedAdminSetup && !adminHub) {
       location.replace(home);
       return null;
     }
@@ -211,5 +222,5 @@ window.Ibraya = (() => {
   }
   const message = (title, text) => dialog({ title, message: text, cancel: false });
 
-  return { sb, inApp, tracker, checkSim, dialog, message, cameFromRecovery, urlError, ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
+  return { sb, inApp, tracker, checkSim, dialog, message, cameFromRecovery, urlError, ROLES, COMPANY_KINDS, MEMBER_ROLES, normalizePhone, phoneEmail, isPhoneAccount, friendlyError, account, myProfile, homeFor, guard, signOut, toLogin };
 })();

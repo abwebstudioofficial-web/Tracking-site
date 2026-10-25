@@ -33,6 +33,25 @@
   }
   showProfile(profile);
 
+  // Transport Hub: which company I drive for, and companies that added my number.
+  async function showCompany() {
+    const { data } = await sb.rpc('my_company');
+    if (!data) return;
+    document.getElementById('brand-sub').textContent = data.company ? data.company.name : 'Driver · ڈرائیور';
+    for (const inv of data.my_invites || []) {
+      const yes = await Ibraya.dialog({
+        title: `${inv.company} added you · آپ کو شامل کیا گیا`,
+        message: `Drive for ${inv.company}? They will see this phone's location while you work for them.\nکیا آپ ${inv.company} کے لیے ڈرائیور ہیں؟ وہ آپ کی لوکیشن دیکھ سکیں گے۔`,
+        okText: 'Accept · قبول', cancelText: 'Later · بعد میں',
+      });
+      if (!yes) continue;
+      const { data: after, error } = await sb.rpc('answer_company_invite', { p_company: inv.company_id, p_accept: true });
+      if (error) { Ibraya.message('Could not join', Ibraya.friendlyError(error)); continue; }
+      if (after.company) { document.getElementById('brand-sub').textContent = after.company.name; break; }
+    }
+  }
+  showCompany().catch(() => {});
+
   // Role changes by the admin show up immediately; removal signs the driver out.
   sb.channel('my-profile')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.id}` },
@@ -147,7 +166,7 @@
     keepAwake();
   }
 
-  // ---------- inside the Ibraya Android app: 24/7 tracking by the native service ----------
+  // ---------- inside the Transport Hub Android app: 24/7 tracking by the native service ----------
   // The steps (and where things are in the settings) depend a little on the phone brand.
   const AUTOSTART_KEY = 'ibraya-autostart-done';
   const autostartDone = () => { try { return localStorage.getItem(AUTOSTART_KEY) === '1'; } catch { return false; } };
