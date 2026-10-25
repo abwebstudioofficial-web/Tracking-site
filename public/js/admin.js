@@ -35,6 +35,7 @@
     truckSize: r.truck_size || '20ft',   // drawn as a 20ft or 40ft container
     urgency: r.urgency || 'normal',      // container colour: normal / urgent / very_urgent
     owner: !!r.is_owner,                 // the main admin: never tracked, can't be changed by other admins
+    developer: !!r.hidden,               // the site's developer: only the main admin sees this account
     tracked: !!r.tracked,                // admins only: location shared (switched by the main admin)
     problem: r.tracking_problem || null, // reported by the app: location_off / no_gps / phone_off / battery_dead / signed_out
     battery: r.battery ?? null,          // phone battery %, sent by the app
@@ -561,7 +562,7 @@
       return `
         <div class="user ${u.id === selectedId ? 'selected' : ''}" data-id="${u.id}">
           <span class="dot ${state}"></span>
-          <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}${u.role === 'admin' ? '' : nameTags(u)}</div>
+          <div class="name">${esc(u.name)}${self ? '<span class="badge">You</span>' : ''}${u.developer ? '<span class="badge">Developer</span>' : ''}${u.role === 'admin' ? '' : nameTags(u)}</div>
           <div class="meta">${meta}</div>
           ${self || locked ? '' : `<div class="controls">
             <select data-role="${u.id}" aria-label="Role for ${esc(u.name)}">${options}</select>

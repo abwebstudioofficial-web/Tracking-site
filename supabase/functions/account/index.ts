@@ -55,6 +55,12 @@ async function isOwner(userId: string): Promise<boolean> {
   return !!data?.is_owner;
 }
 
+// The developer's account is hidden from every admin but the main admin, who alone may change it.
+async function hiddenFrom(userId: string, adminId: string): Promise<boolean> {
+  const { data } = await admin.from('profiles').select('hidden').eq('id', userId).maybeSingle();
+  return !!data?.hidden && !(await isOwner(adminId));
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -133,6 +139,7 @@ Deno.serve(async (req) => {
       const userId = String(body.userId ?? '');
       if (userId === me) return json({ error: 'You cannot delete your own admin account' }, 400);
       if (await isOwner(userId)) return json({ error: 'The main admin cannot be removed' }, 403);
+      if (await hiddenFrom(userId, me)) return json({ error: 'User not found' }, 404);
       const { error } = await admin.auth.admin.deleteUser(userId);
       if (error) return json({ error: error.message }, 400);
       return json({ ok: true });
@@ -145,6 +152,7 @@ Deno.serve(async (req) => {
       const password = String(body.password ?? '');
       if (userId === me) return json({ error: 'Change your own password from the sign-in page' }, 400);
       if (await isOwner(userId)) return json({ error: "The main admin's password can only be changed by them" }, 403);
+      if (await hiddenFrom(userId, me)) return json({ error: 'User not found' }, 404);
       if (password.length < 6) return json({ error: 'Password must be at least 6 characters' }, 400);
       const { error } = await admin.auth.admin.updateUserById(userId, { password });
       if (error) return json({ error: error.message }, 400);
