@@ -35,7 +35,7 @@
   $('to-fleet').hidden = !isAdmin;
 
   let state = null; // answer of my_company()
-  let tab = 'overview';
+  let tab = null; // opens on the load board (or My loads) once the company is verified
   let registering = false; // chose "register my own company" instead of an invite
   let editing = false;
   let companies = null; // admin: answer of admin_list_companies()
@@ -174,7 +174,9 @@
     const role = state.role;
     const staff = role === 'owner' || role === 'manager';
     const pending = isAdmin && companies ? companies.filter((x) => x.company.status === 'pending').length : 0;
-    const tabs = [['overview', 'Details'], ['team', `Team (${state.members.length})`]];
+    const loadTabs = c.status === 'verified' ? HubLoads.tabs(c, role) : [];
+    if (!tab) tab = loadTabs.length ? HubLoads.firstTab(c) : 'overview';
+    const tabs = [...loadTabs, ['overview', 'Details'], ['team', `Team (${state.members.length})`]];
     if (staff) tabs.push(['papers', 'Papers']);
     if (isAdmin) tabs.push(['admin', `Companies${pending ? ` <span class="count">${pending}</span>` : ''}`]);
     if (!tabs.some(([k]) => k === tab)) tab = 'overview';
@@ -189,7 +191,9 @@
       <nav class="hub-tabs">${tabs.map(([k, label]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${label}</button>`).join('')}</nav>
       <section id="tab-body"></section>`;
     main.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; editing = false; renderDashboard(); }));
-    ({ overview: renderOverview, team: renderTeam, papers: renderPapers, admin: renderAdmin })[tab]();
+    const page = { overview: renderOverview, team: renderTeam, papers: renderPapers, admin: renderAdmin }[tab];
+    if (page) return page();
+    HubLoads.render(tab, { body: $('tab-body'), busy, rpc, go: (t) => { tab = t; renderDashboard(); } });
   }
 
   function detailRows(c) {
@@ -236,13 +240,12 @@
         <div class="card-head"><h2>Company details</h2>${state.role === 'owner' ? '<button class="btn btn-ghost btn-small" id="edit">Edit</button>' : ''}</div>
         ${detailRows(c)}
       </div>
-      <div class="panel-card coming">
-        <h2>Coming next: the load board · جلد آ رہا ہے: لوڈ بورڈ</h2>
-        <p class="muted">${c.kind === 'carrier' || c.kind === 'dispatcher'
-          ? 'Find loads near your trucks, place bids that shippers can compare, and get booked.'
-          : 'Post your loads, compare carriers\' open bids side by side, and book a truck.'}
-          Only verified companies can post and bid.</p>
-      </div>`;
+      ${c.status === 'verified' ? '' : `<div class="panel-card coming">
+        <h2>The load board opens once you're verified · تصدیق کے بعد لوڈ بورڈ</h2>
+        <p class="muted">${c.kind === 'shipper'
+          ? 'Post your loads, compare carriers\' open bids side by side, and book a truck.'
+          : 'Find loads, place bids that shippers can compare, and get booked.'}</p>
+      </div>`}`;
     const edit = $('edit');
     if (edit) edit.addEventListener('click', () => { editing = true; renderOverview(); });
   }
