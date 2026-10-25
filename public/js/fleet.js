@@ -61,7 +61,7 @@ window.HubFleet = (() => {
 
     if (!map && window.L) {
       map = L.map('fleet-map', { zoomControl: true }).setView([30.3753, 69.3451], 5);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+      GoogleMap.leafletLayer(L, map); // Google's map, or OpenStreetMap as the backup
       layer = L.layerGroup().addTo(map);
     }
     if (map) {

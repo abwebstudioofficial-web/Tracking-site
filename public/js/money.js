@@ -178,7 +178,31 @@ window.HubMoney = (() => {
       ${owers.length ? `<div class="panel-card"><h2>Who owes</h2><div class="rows">${owers.map((o) => `
         <div class="row"><div class="row-main"><b>${esc(o.name)}</b><div class="muted small">${o.trips} trip${o.trips > 1 ? 's' : ''}${o.phone ? ` · ${esc(o.phone.startsWith('+92') ? '0' + o.phone.slice(3) : o.phone)}` : ''}</div></div>
           <div class="price">${rs(o.amount)}</div></div>`).join('')}</div></div>` : ''}
-      <div class="panel-card"><h2>All fees</h2><div class="rows" id="fee-list">${feeRows(d.items, true)}</div></div>`;
+      <div class="panel-card"><h2>All fees</h2><div class="rows" id="fee-list">${feeRows(d.items, true)}</div></div>
+      <div class="panel-card narrow">
+        <h2>Google map · گوگل نقشہ</h2>
+        <p class="muted small">With a Google key, every map on Transport Hub uses Google's map (more streets and place names). Without one, or if Google stops working, our free map is used.</p>
+        <form class="fee-form" id="gkey-form" novalidate>
+          <input name="key" class="select" maxlength="60" autocomplete="off" spellcheck="false" placeholder="AIza…" value="">
+          <button class="btn btn-small" id="gkey-save">Save</button>
+        </form>
+        <p class="muted small" id="gkey-now"></p>
+        <div class="error" id="gkey-error"></div>
+      </div>`;
+    const gk = body.querySelector('#gkey-form');
+    const showKey = (k) => {
+      body.querySelector('#gkey-now').textContent = k ? `Google map is on (key …${k.slice(-6)}). Save an empty box to turn it off.` : 'Google map is off: our free map is used.';
+    };
+    rpc('map_config').then((c) => showKey(c.google_key)).catch(() => showKey(''));
+    gk.addEventListener('submit', (e) => {
+      e.preventDefault();
+      busy(body.querySelector('#gkey-save'), body.querySelector('#gkey-error'), async () => {
+        const c = await rpc('admin_set_map_key', { p_key: gk.key.value.trim() });
+        gk.key.value = '';
+        showKey(c.google_key);
+        await Ibraya.dialog({ title: 'Saved', message: 'Maps opened from now on use it.', cancel: false });
+      });
+    });
     const f = body.querySelector('#fee-form');
     f.addEventListener('submit', (e) => {
       e.preventDefault();

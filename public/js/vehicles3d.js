@@ -8,7 +8,9 @@ import * as THREE from '/vendor/three.module.min.js';
 
 const STATUS_COLOR = { active: 0x1fae5b, idle: 0xf5a524, offline: 0x8b97a1, none: 0x8b97a1, alert: 0xd93838 };
 const URGENCY_COLOR = { normal: 0xf1f4f7, urgent: 0xfcd34d, very_urgent: 0xef4444 };
-const MIN_PX = 54;    // a truck is never drawn shorter than this on screen
+// A truck is never drawn shorter than this on screen; smaller when the whole country is shown,
+// so the trucks in one city don't pile up into a block.
+const minPx = (zoom) => (zoom < 6 ? 26 : zoom < 9 ? 36 : 54);
 const EARTH = 40075016.686;
 
 // Shared geometry and materials (meters; +y = forward, +z = up).
@@ -124,7 +126,7 @@ const layer = {
       const mc = maplibregl.MercatorCoordinate.fromLngLat([s.lng, s.lat], 0);
       const unit = mc.meterInMercatorCoordinateUnits();
       const pxPerM = (512 * 2 ** zoom) / (EARTH * Math.cos((s.lat * Math.PI) / 180));
-      const grow = Math.max(1, MIN_PX / (v.group.userData.length * pxPerM));
+      const grow = Math.max(1, minPx(zoom) / (v.group.userData.length * pxPerM));
       const k = unit * grow;
       v.group.visible = true;
       v.group.matrixAutoUpdate = false;

@@ -169,7 +169,145 @@
   }
   map.gl.addControl(new BuildingsControl(), 'top-right');
 
+  // Google view: Google's own map (more streets and place names in Pakistan) in place of ours, at the
+  // same spot. It's Google's free embedded map, so our trucks can't be drawn on it: a truck is shown
+  // as Google's red pin, and the pin follows the truck while it's being followed.
+  let google = null; // { id: truck shown with a pin, or null; at: [lat, lng] last shown }
+  const gWrap = document.createElement('div');
+  gWrap.className = 'google-view';
+  gWrap.hidden = true;
+  gWrap.innerHTML = `<iframe title="Google map" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+    <div class="google-bar"><span id="google-what"></span><button class="btn btn-small" id="google-close">← Live map with trucks</button></div>`;
+  map.getContainer().parentElement.appendChild(gWrap);
+  const gFrame = gWrap.querySelector('iframe');
+  const gWhat = gWrap.querySelector('#google-what');
+  function showGoogle(id) {
+    const u = id && users.get(id);
+    const z = Math.max(3, Math.min(20, Math.round(map.getZoom()) - 1));
+    let src;
+    if (u && u.location) {
+      const zoom = Math.max(z, 15);
+      google = { id, at: [u.location.lat, u.location.lng] };
+      src = `https://maps.google.com/maps?q=${u.location.lat.toFixed(6)},${u.location.lng.toFixed(6)}&z=${zoom}&hl=en&output=embed`;
+      gWhat.textContent = `📍 ${u.name} on Google map · updated ${ago(u.location.at)}`;
+    } else {
+      const c = map.gl.getCenter();
+      google = { id: null, at: [c.lat, c.lng] };
+      src = `https://maps.google.com/maps?ll=${c.lat.toFixed(6)},${c.lng.toFixed(6)}&z=${z}&hl=en&output=embed`;
+      gWhat.textContent = 'Google map · trucks show on the live map';
+    }
+    if (gFrame.src !== src) gFrame.src = src;
+    gWrap.hidden = false;
+    gBtn.classList.add('on');
+  }
+  function hideGoogle() {
+    gWrap.hidden = true;
+    google = null;
+    gBtn.classList.remove('on');
+  }
+  // A shown truck that moved more than 50 m gets its pin moved (Google's map reloads).
+  function googleTruckMoved(u) {
+    if (!google || google.id !== u.id || !u.location) return;
+    if (map.distance(google.at, [u.location.lat, u.location.lng]) > 50) showGoogle(u.id);
+    else gWhat.textContent = `📍 ${u.name} on Google map · updated ${ago(u.location.at)}`;
+  }
+  class GoogleControl {
+    onAdd() {
+      this.el = document.createElement('div');
+      this.el.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+      this.el.innerHTML = '<button type="button" class="ctrl-google" title="Google map" aria-label="Google map">G</button>';
+      this.el.querySelector('button').addEventListener('click', () => {
+        // On Google's map: road map ↔ satellite. On our free map: the Google view.
+        if (googleSrc) {
+          const next = googleSrc.type === 'satellite' ? 'roadmap' : 'satellite';
+          useGoogle(next).catch(() => { GoogleMap.forget(next); });
+        } else if (google) hideGoogle();
+        else showGoogle(following ? following.id : null);
+      });
+      return this.el;
+    }
+    onRemove() { this.el.remove(); }
+  }
+  map.gl.addControl(new GoogleControl(), 'top-right');
+  const gBtn = document.querySelector('.ctrl-google');
+  // Map buttons that fit the base map in use: 🏢 only on our free map (it has the 3D buildings),
+  // 🛰️ / 🗺️ on Google's map, G (Google view) on our free map.
+  map.gl.on('style.load', () => {
+    document.querySelector('.ctrl-3d').parentElement.hidden = !map.gl.getLayer('building-3d');
+    if (googleSrc) {
+      hideGoogle();
+      const sat = googleSrc.type === 'satellite';
+      gBtn.textContent = sat ? '🗺️' : '🛰️';
+      gBtn.title = sat ? 'Road map' : 'Satellite';
+    } else {
+      gBtn.textContent = 'G';
+      gBtn.title = 'Google map';
+    }
+  });
+  gWrap.querySelector('#google-close').addEventListener('click', hideGoogle);
+
+  // Main map: Google's (when an admin has set the Google key in Hub → Commission). Backup: our free
+  // map below. Google's tiles are pictures, so they're shown as a raster layer under our trucks.
+  let googleSrc = null; // the Google tiles in use, or null on our free map
+  let googleErrors = 0;
+  const gCredit = document.createElement('div');
+  gCredit.className = 'google-credit';
+  gCredit.hidden = true;
+  map.getContainer().appendChild(gCredit);
+  function updateGoogleCredit() {
+    if (!googleSrc) return;
+    const b = map.gl.getBounds();
+    GoogleMap.credit(gCredit, googleSrc, { zoom: map.getZoom(), north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() });
+  }
+  map.on('moveend', updateGoogleCredit);
+  // Dark theme on a picture map (Google road map, plain OpenStreetMap): the map image is turned
+  // dark (light ↔ dark swapped, colours kept), but never our trucks or a satellite photo.
+  const rasterPaint = (photo) => (document.documentElement.dataset.theme === 'dark' && !photo
+    ? { 'raster-brightness-min': 0.92, 'raster-brightness-max': 0.08, 'raster-hue-rotate': 180, 'raster-saturation': -0.35, 'raster-contrast': 0.05 }
+    : {});
+  function paintRaster() {
+    const id = ['google', 'osm'].find((x) => map.gl.getLayer(x));
+    if (!id) return;
+    const paint = rasterPaint(googleSrc && googleSrc.type === 'satellite');
+    ['raster-brightness-min', 'raster-brightness-max', 'raster-hue-rotate', 'raster-saturation', 'raster-contrast']
+      .forEach((k) => map.gl.setPaintProperty(id, k, paint[k] ?? (k === 'raster-brightness-max' ? 1 : 0)));
+  }
+  new MutationObserver(paintRaster).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  async function useGoogle(type) {
+    const src = await GoogleMap.source(type);
+    if (!src) return false;
+    googleSrc = src;
+    googleErrors = 0;
+    map.getContainer().classList.add('raster-map', 'google-map');
+    map.getContainer().classList.toggle('satellite', type === 'satellite');
+    map.setStyle({
+      version: 8,
+      sources: { google: { type: 'raster', tiles: [src.tiles], tileSize: 256, maxzoom: 22 } },
+      layers: [{ id: 'google', type: 'raster', source: 'google', paint: rasterPaint(type === 'satellite') }],
+    }, { transformStyle: keepOurLayers });
+    updateGoogleCredit();
+    return true;
+  }
+  // Google tiles that keep failing (key removed, daily limit reached): switch to our free map.
+  map.gl.on('error', (e) => {
+    if (!googleSrc || e.sourceId !== 'google') return;
+    if (++googleErrors < 6) return;
+    GoogleMap.forget(googleSrc.type);
+    googleSrc = null;
+    gCredit.hidden = true;
+    addFreeMap();
+  });
+  map.gl.on('data', (e) => { if (e.sourceId === 'google' && e.tile) googleErrors = 0; });
+
   async function addBaseMap() {
+    try {
+      if (await useGoogle('roadmap')) return;
+    } catch { GoogleMap.forget('roadmap'); }
+    addFreeMap();
+  }
+  async function addFreeMap() {
+    map.getContainer().classList.remove('google-map', 'satellite', 'raster-map');
     try {
       // Joins Urdu/Arabic letters correctly and draws them right-to-left.
       maplibregl.setRTLTextPlugin(`${location.origin}/vendor/rtl-text.js`, true).catch(() => {});
@@ -190,7 +328,7 @@
       map.setStyle({
         version: 8,
         sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: OSM_ATTR } },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+        layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: rasterPaint(false) }],
       }, { transformStyle: keepOurLayers });
     }
   }
@@ -316,6 +454,7 @@
       ${nearbyHtml(u)}
       <button class="link" data-follow="${u.id}">${following && following.id === u.id ? 'Stop following' : 'Follow live'}</button> ·
       <button class="link" data-history="${u.id}">Show history</button> ·
+      <button class="link" data-gview="${u.id}">Google map here</button> ·
       <button class="link" data-gmaps="${u.id}">Route in Google Maps</button>`;
   }
 
@@ -348,6 +487,7 @@
   }
 
   function renderMarker(u) {
+    googleTruckMoved(u);
     let m = markers.get(u.id);
     if (!u.location || !isTracked(u)) {
       if (m) { m.remove(); markers.delete(u.id); }
@@ -1087,7 +1227,12 @@
   document.addEventListener('click', (e) => {
     const f = e.target.closest('[data-follow]');
     const g = e.target.closest('[data-gmaps]');
-    if (f) {
+    const gv = e.target.closest('[data-gview]');
+    if (gv) {
+      e.preventDefault();
+      map.closePopup();
+      showGoogle(gv.dataset.gview);
+    } else if (f) {
       e.preventDefault();
       if (following && following.id === f.dataset.follow) stopFollow();
       else startFollow(f.dataset.follow);
