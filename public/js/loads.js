@@ -415,7 +415,7 @@ window.HubLoads = (() => {
     if (!trips.length) return;
     if (!tripsMap) {
       tripsMap = L.map(box, { zoomControl: true, attributionControl: true });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(tripsMap);
+      GoogleMap.leafletLayer(L, tripsMap); // Google's map, or OpenStreetMap as the backup
       tripsMap._ibLayer = L.layerGroup().addTo(tripsMap);
       tripsMap._ibFitted = false;
     }

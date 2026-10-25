@@ -249,7 +249,6 @@ button, input, select { font: inherit; color: inherit; }
 
 #map { height: 100%; width: 100%; background: #dfe5e8; }
 :root[data-theme="dark"] #map { background: #1b2228; }
-:root[data-theme="dark"] #map.raster-map .maplibregl-canvas { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
 .map-wrap { position: relative; min-height: 0; }
 .toggle-list { display: none; }
 
@@ -685,3 +684,36 @@ body.sheet-open { overflow: hidden; }
 .kind-chosen span:not(.kind-icon) { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 @media (max-width: 560px) { .welcome-grid { grid-template-columns: 1fr; } .welcome-card { flex-direction: row; flex-wrap: wrap; align-items: center; } .welcome-card span:not(.kind-icon) { flex-basis: 100%; } }
 .modal.welcome:focus { outline: none; }
+
+/* Google view on the admin map (Google's embedded map in place of ours) */
+.google-view { position: absolute; inset: 0; z-index: 900; background: var(--panel); }
+.google-view[hidden] { display: none; }
+.google-view iframe { width: 100%; height: 100%; border: 0; display: block; }
+.google-bar {
+  position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px);
+  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: 999px;
+  background: var(--panel); color: var(--text); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); font-size: 14px;
+}
+.google-bar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.google-bar .btn { width: auto; white-space: nowrap; }
+.ctrl-google { font: 700 15px system-ui, sans-serif; color: #4285f4 !important; }
+.ctrl-google.on { background: #d6f7f3 !important; }
+#map { isolation: isolate; } /* truck markers stay under the Google view */
+@media (max-width: 800px) { .google-bar { bottom: 84px; } }
+
+/* Google's map: its name and the map-data credit, bottom left (our map's credit is hidden) */
+.google-credit {
+  position: absolute; left: 8px; bottom: 6px; z-index: 800; display: flex; align-items: center; gap: 8px;
+  font: 11px system-ui, sans-serif; color: #444; pointer-events: none;
+}
+.google-credit[hidden] { display: none; }
+.google-credit span { background: rgba(255, 255, 255, .75); padding: 1px 6px; border-radius: 4px; }
+.g-logo { font: 700 16px/1 "Product Sans", Arial, sans-serif; letter-spacing: -.3px; text-shadow: 0 0 3px #fff, 0 0 2px #fff; }
+.g-logo i { font-style: normal; }
+.g-logo i:nth-child(1), .g-logo i:nth-child(4) { color: #4285f4; }
+.g-logo i:nth-child(2), .g-logo i:nth-child(6) { color: #ea4335; }
+.g-logo i:nth-child(3) { color: #fbbc05; }
+.g-logo i:nth-child(5) { color: #34a853; }
+#map.google-map .maplibregl-ctrl-attrib { display: none; }
+.satellite .google-credit span { background: rgba(0, 0, 0, .5); color: #fff; }
+.leaflet-container .google-credit { z-index: 1000; }
