@@ -620,3 +620,25 @@ body.sheet-open { overflow: hidden; }
   .invoice { border: 0; box-shadow: none; padding: 0; max-width: none; }
   .pill { border: 1px solid currentColor; }
 }
+
+/* ---------- Transport Hub: carrier fleet map, commission ---------- */
+.fleet-map { height: 380px; border-radius: 14px; border: 1px solid var(--line); margin: 10px 0 12px; overflow: hidden; }
+.fleet-counts { display: flex; gap: 6px; flex-wrap: wrap; }
+.fleet-chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); }
+.fleet-chip.job { background: #ece4fb; color: #5a2db0; border-color: #d6c8f5; }
+.fleet-chip.live { background: #dcf5e6; color: #11703b; border-color: #bde8cf; }
+.fleet-chip.offline { color: var(--muted); }
+.fleet-chip.problem { background: #ffe1e1; color: #a61b1b; border-color: #f7c4c4; }
+:root[data-theme="dark"] .fleet-chip.job { background: #2a1d4a; color: #c4b5fd; border-color: #3d2d66; }
+:root[data-theme="dark"] .fleet-chip.live { background: #143823; color: #6ee7a0; border-color: #1e4d31; }
+:root[data-theme="dark"] .fleet-chip.problem { background: #3b1717; color: #ff9b9b; border-color: #552222; }
+.fleet-row { cursor: pointer; }
+.fleet-row a, .fleet-row .link { color: var(--accent-text); font-weight: 600; }
+.error-text { color: var(--danger); }
+.trip-pin.fleet-live span { border-color: #1fae5b; }
+.trip-pin.fleet-offline span { border-color: #a3adb6; color: #6b6785; }
+.trip-pin.fleet-problem span { border-color: #d93838; }
+.fee-card { border: 2px solid var(--accent-solid); }
+.fee-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fee-form .select { max-width: 180px; }
+@media (max-width: 560px) { .fleet-map { height: 300px; } }

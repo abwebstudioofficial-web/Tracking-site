@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "689289415732",
+    "project_id": "transport-hub-ed45a",
+    "storage_bucket": "transport-hub-ed45a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689289415732:android:98fcc6be9da9c1ae01ce61",
+        "android_client_info": {
+          "package_name": "com.ibraya.tracking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjxEajgpF5-31hDu7W-EoEdGuKFyhklmc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

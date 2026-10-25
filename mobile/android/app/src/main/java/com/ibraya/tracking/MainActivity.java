@@ -1,5 +1,8 @@
 package com.ibraya.tracking;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 
@@ -16,8 +19,18 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(TrackerPlugin.class);
         super.onCreate(savedInstanceState);
         keepPageBetweenSystemBars();
+        createAlertsChannel();
         // If tracking was on before (e.g. the app was closed), make sure it's running.
         TrackerService.startIfConfigured(this);
+    }
+
+    // Pop-up notifications from Transport Hub (new job, new bid, delivered, payment...) use this
+    // channel: high importance, so they make a sound and show on screen.
+    private void createAlertsChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationChannel hub = new NotificationChannel("hub", "Transport Hub alerts", NotificationManager.IMPORTANCE_HIGH);
+        hub.setDescription("New jobs, bids, deliveries and payments");
+        getSystemService(NotificationManager.class).createNotificationChannel(hub);
     }
 
     // The page must sit below the status bar and above the back/home buttons (and the keyboard),

@@ -24,7 +24,7 @@ window.HubMoney = (() => {
 
   // ---------- the bell ----------
   const ICONS = { bid: '💬', won: '🏆', lost: '·', driver: '🚚', step: '📍', delivered: '✅', invoice: '🧾', payment: '💰', paid: '✅',
-    rated: '⭐', verified: '✅', rejected: '⚠️', cancelled: '✖' };
+    rated: '⭐', verified: '✅', rejected: '⚠️', cancelled: '✖', fee: '🏷️' };
   let bell = null;
   let data = { unseen: 0, items: [] };
   let open = false;
@@ -94,10 +94,28 @@ window.HubMoney = (() => {
   const INV_STATUS = { unpaid: ['Unpaid', 'warn'], paid_reported: ['Payment reported', 'warn'], paid: ['Paid ✓', 'ok'] };
   const overdue = (i) => i.status !== 'paid' && new Date(i.due_date + 'T23:59:59') < new Date();
 
-  async function renderInvoices(body, { rpc }) {
+  const FEE_STATUS = { due: ['Due', 'warn'], paid: ['Paid ✓', 'ok'], waived: ['Waived', 'ok'] };
+  function feeRows(items, admin) {
+    return items.length ? items.map((f) => {
+      const [label, cls] = FEE_STATUS[f.status];
+      return `<div class="row">
+        <div class="row-main"><b>${rs(f.amount)}</b> <span class="pill small ${cls}">${label}</span>${admin ? ` · <b>${esc(f.company.name)}</b>` : ''}
+          <div class="muted small">${f.trips} trip${f.trips > 1 ? 's' : ''} × ${rs(f.fee_per_trip)} · ${esc(f.route)} · ${date(f.created_at)}${f.note ? ` · ${esc(f.note)}` : ''}</div></div>
+        ${admin ? `<div class="row-actions">${f.status !== 'paid' ? `<button class="btn btn-small" data-fee="${f.id}" data-to="paid">Mark paid</button>` : ''}
+          ${f.status === 'due' ? `<button class="btn btn-ghost btn-small" data-fee="${f.id}" data-to="waived">Waive</button>` : ''}
+          ${f.status !== 'due' ? `<button class="btn btn-ghost btn-small" data-fee="${f.id}" data-to="due">Back to due</button>` : ''}</div>` : ''}
+      </div>`;
+    }).join('') : '<p class="muted">No fees yet. A fee is added when a load you carried is delivered.</p>';
+  }
+
+  async function renderInvoices(body, { rpc, kind }) {
     body.innerHTML = '<div class="panel-card"><p class="muted">Loading invoices…</p></div>';
     let d;
-    try { d = await rpc('my_invoices'); } catch (err) {
+    let fees = null;
+    try {
+      d = await rpc('my_invoices');
+      if (kind !== 'shipper') fees = await rpc('my_platform_fees');
+    } catch (err) {
       body.innerHTML = `<div class="panel-card"><p class="error">${esc(Ibraya.friendlyError(err))}</p></div>`;
       return;
     }
@@ -118,7 +136,71 @@ window.HubMoney = (() => {
             <div class="price ${i.direction === 'receivable' ? 'in' : 'out'}">${i.direction === 'receivable' ? '+' : '−'} ${rs(i.total)}</div>
           </a>`;
         }).join('') : '<p class="muted">No invoices yet. They appear here when your loads are delivered.</p>'}</div>
-      </div>`;
+      </div>
+      ${fees ? `<div class="panel-card fee-card">
+        <div class="card-head"><h2>Transport Hub fees · کمیشن</h2><b>${rs(fees.due)} due</b></div>
+        <p class="muted small">${rs(fees.fee_per_trip)} for each truck trip you deliver. Pay it to Transport Hub; an admin marks it paid.</p>
+        <div class="rows">${feeRows(fees.items, false)}</div>
+      </div>` : ''}`;
+  }
+
+  // ---------- platform admins: the fee per trip and what carriers owe ----------
+  async function renderCommission(body, { rpc, busy }) {
+    body.innerHTML = '<div class="panel-card"><p class="muted">Loading…</p></div>';
+    let d;
+    try { d = await rpc('admin_platform_fees'); } catch (err) {
+      body.innerHTML = `<div class="panel-card"><p class="error">${esc(Ibraya.friendlyError(err))}</p></div>`;
+      return;
+    }
+    const owed = {};
+    d.items.filter((f) => f.status === 'due').forEach((f) => {
+      const o = owed[f.company.id] || (owed[f.company.id] = { name: f.company.name, phone: f.company.phone, amount: 0, trips: 0 });
+      o.amount += f.amount;
+      o.trips += f.trips;
+    });
+    const owers = Object.values(owed).sort((a, b) => b.amount - a.amount);
+    body.innerHTML = `
+      <div class="money-cards">
+        <div class="panel-card money"><small>Fee per trip</small><b>${rs(d.fee_per_trip)}</b></div>
+        <div class="panel-card money"><small>Owed by carriers</small><b>${rs(d.due)}</b></div>
+        <div class="panel-card money"><small>Collected</small><b>${rs(d.collected)}</b></div>
+      </div>
+      <div class="panel-card narrow">
+        <h2>Change the fee · کمیشن تبدیل کریں</h2>
+        <form class="fee-form" id="fee-form" novalidate>
+          <input name="amount" class="select" type="number" min="0" max="1000000" step="100" inputmode="numeric" value="${d.fee_per_trip}">
+          <span class="muted">Rs per truck trip</span>
+          <button class="btn btn-small" id="fee-save">Save</button>
+        </form>
+        <p class="muted small">Carriers pay this for each truck trip they deliver. A new fee only applies to loads delivered after you change it.</p>
+        <div class="error" id="fee-error"></div>
+      </div>
+      ${owers.length ? `<div class="panel-card"><h2>Who owes</h2><div class="rows">${owers.map((o) => `
+        <div class="row"><div class="row-main"><b>${esc(o.name)}</b><div class="muted small">${o.trips} trip${o.trips > 1 ? 's' : ''}${o.phone ? ` · ${esc(o.phone.startsWith('+92') ? '0' + o.phone.slice(3) : o.phone)}` : ''}</div></div>
+          <div class="price">${rs(o.amount)}</div></div>`).join('')}</div></div>` : ''}
+      <div class="panel-card"><h2>All fees</h2><div class="rows" id="fee-list">${feeRows(d.items, true)}</div></div>`;
+    const f = body.querySelector('#fee-form');
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      busy(body.querySelector('#fee-save'), body.querySelector('#fee-error'), async () => {
+        const amount = parseInt(f.amount.value, 10);
+        if (Number.isNaN(amount) || amount < 0) throw new Error('Enter the fee in rupees');
+        if (!(await Ibraya.dialog({ title: `Set the fee to ${rs(amount)} per trip?`, message: 'It applies to loads delivered from now on.', okText: 'Save' }))) return;
+        await rpc('admin_set_fee', { p_amount: amount });
+        await renderCommission(body, { rpc, busy });
+      });
+    });
+    body.querySelectorAll('[data-fee]').forEach((b) => b.addEventListener('click', async () => {
+      let note = '';
+      if (b.dataset.to === 'paid') {
+        note = await Ibraya.dialog({ title: 'Mark this fee as paid?', message: 'How was it paid? (optional)', okText: 'Mark paid', input: { placeholder: 'e.g. JazzCash TX123, cash' } });
+        if (note == null) return;
+      }
+      busy(b, null, async () => {
+        await rpc('admin_set_fee_status', { p_fee: b.dataset.fee, p_status: b.dataset.to, p_note: note });
+        await renderCommission(body, { rpc, busy });
+      });
+    }));
   }
 
   // ---------- rating a delivered load (inside the load panel) ----------
@@ -150,5 +232,5 @@ window.HubMoney = (() => {
     });
   }
 
-  return { ratingText, initBell, renderInvoices, ratingBlock, wireRating };
+  return { ratingText, initBell, renderInvoices, renderCommission, ratingBlock, wireRating };
 })();
