@@ -21,9 +21,10 @@ const json = (body: unknown, status = 200) =>
 // Same rules as public.normalize_phone() in the database.
 function normalizePhone(raw: unknown): string | null {
   let d = String(raw ?? '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2); // 0092 300 ...
   if (d.startsWith('0') && d.length === 11) d = '92' + d.slice(1);
   if (d.startsWith('3') && d.length === 10) d = '92' + d;
-  if (d.length < 9 || d.length > 15) return null;
+  if (!/^92\d{9,10}$/.test(d)) return null; // Pakistani numbers only
   return '+' + d;
 }
 

@@ -37,9 +37,10 @@ window.Ibraya = (() => {
   // 03001234567 / 3001234567 / +92 300 1234567 -> +923001234567
   function normalizePhone(raw) {
     let d = String(raw || '').replace(/\D/g, '');
+    if (d.startsWith('00')) d = d.slice(2); // 0092 300 ...
     if (d.startsWith('0') && d.length === 11) d = '92' + d.slice(1);
     if (d.startsWith('3') && d.length === 10) d = '92' + d;
-    if (d.length < 9 || d.length > 15) return null;
+    if (!/^92\d{9,10}$/.test(d)) return null; // Pakistani numbers only: 0300 1234567 → +923001234567
     return '+' + d;
   }
 
