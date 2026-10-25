@@ -121,7 +121,9 @@ window.GL = (() => {
     let map = null;
     let mk = null;
     const paint = () => {
-      el.className = `ib-marker ${icon.className || ''}`;
+      // keep MapLibre's own classes (they position the marker); swap only ours
+      const own = [...el.classList].filter((c) => c.startsWith('maplibregl-')).join(' ');
+      el.className = `ib-marker ${icon.className || ''} ${own}`;
       const [w, h] = icon.iconSize || [18, 18];
       el.style.width = `${w}px`;
       el.style.height = `${h}px`;
