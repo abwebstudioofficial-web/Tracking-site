@@ -417,7 +417,7 @@
     if (f) f.addEventListener('submit', (e) => {
       e.preventDefault();
       busy($('invite-submit'), $('invite-error'), async () => {
-        if (!Ibraya.normalizePhone(f.phone.value)) throw new Error('Enter a valid phone number · درست فون نمبر لکھیں');
+        if (!Ibraya.normalizePhone(f.phone.value)) throw new Error('Enter the full mobile number, 11 digits, e.g. 0300 1234567 · پورا موبائل نمبر لکھیں');
         await rpc('company_invite', { p_phone: f.phone.value, p_name: f.name.value, p_role: f.role.value });
         await load();
       });
