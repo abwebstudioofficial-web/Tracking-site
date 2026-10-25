@@ -336,6 +336,11 @@ window.HubLoads = (() => {
     at_drop: ['At destination', 'warn'], delivered: ['Delivered ✓', 'ok'],
   };
   const TRIP_STEPS = [['at_pickup', 'Pickup'], ['loaded', 'Loaded'], ['at_drop', 'Arrived'], ['delivered', 'Delivered']];
+  // The next step the carrier's office can mark for a truck (the driver does the same in the app).
+  const NEXT_STEP = {
+    assigned: ['at_pickup', 'Mark at pickup · پک اپ پر'], at_pickup: ['loaded', 'Mark loaded · لوڈ ہو گیا'],
+    loaded: ['at_drop', 'Mark arrived · پہنچ گیا'], at_drop: ['delivered', 'Mark delivered (bilty photo) · ڈیلیور'],
+  };
   const time = (t) => new Date(t).toLocaleString('en-PK', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   const mapsAt = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`;
 
@@ -348,9 +353,10 @@ window.HubLoads = (() => {
         <div class="muted small"><a href="tel:${esc(t.driver.phone)}">${esc(localPhone(t.driver.phone))}</a>${loc ? ` · last seen ${seen} · <a target="_blank" rel="noopener" href="${mapsAt(loc.lat, loc.lng)}">on map</a>${loc.problem ? ' · ⚠ tracking problem' : ''}` : ''}</div>
         <div class="trip-steps">${TRIP_STEPS.map(([k, v]) => {
           const st = t.steps[k];
-          return `<span class="${st ? 'done' : ''}">${v}${st ? `<small>${time(st.at)}${st.lat != null ? ` · <a target="_blank" rel="noopener" href="${mapsAt(st.lat, st.lng)}">where</a>` : ' · no GPS'}</small>` : ''}</span>`;
+          return `<span class="${st ? 'done' : ''}">${v}${st ? `<small>${time(st.at)}${st.by === 'office' ? ' · by office' : ''}${st.lat != null ? ` · <a target="_blank" rel="noopener" href="${mapsAt(st.lat, st.lng)}">where</a>` : ' · no GPS'}</small>` : ''}</span>`;
         }).join('')}</div></div>
       <div class="row-actions">
+        ${canAssign && NEXT_STEP[t.status] ? `<button class="btn btn-small" data-step="${NEXT_STEP[t.status][0]}" data-trip="${t.id}" data-load="${t.load_id}" data-name="${esc(t.driver.name)}">${NEXT_STEP[t.status][1]}</button>` : ''}
         ${t.has_pod ? `<button class="btn btn-ghost btn-small" data-pod="${esc(t.pod_path)}">Bilty photo</button>` : ''}
         ${canAssign && (t.status === 'assigned' || t.status === 'at_pickup') ? `<button class="btn btn-ghost btn-small" data-unassign="${t.id}" data-name="${esc(t.driver.name)}">Remove</button>` : ''}
       </div>
@@ -384,7 +390,8 @@ window.HubLoads = (() => {
           ${d.drivers.filter((x) => x.busy).map((x) => `<option disabled>${esc(x.name)} (on another job)</option>`).join('')}</select>
         <button class="btn btn-small" ${free.length ? '' : 'disabled'}>Assign driver</button>
       </form><div class="error" id="assign-error"></div>`
-      : '<p class="muted">Add drivers to your company first (Team tab), then assign them here.</p>') : '';
+      : '<p class="muted">Add drivers to your company first (Team tab), then assign them here.</p>')
+      : d.trips.length && !d.can_assign ? '<p class="muted small">Pickup, Loaded and Arrived are marked by the driver in the app (or by the carrier\'s office). You get an alert at each step.</p>' : '';
     const af = assign.querySelector('#assign-form');
     if (af) af.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -396,6 +403,31 @@ window.HubLoads = (() => {
     list.querySelectorAll('[data-unassign]').forEach((b) => b.addEventListener('click', async () => {
       if (!(await Ibraya.dialog({ title: `Take ${b.dataset.name} off this job?`, okText: 'Remove', danger: true }))) return;
       ctx.busy(b, null, async () => { await ctx.rpc('unassign_trip', { p_trip: b.dataset.unassign }); await renderTrucks(loadId); });
+    }));
+    // The office marks the next step for a truck; "delivered" asks for the bilty / receipt photo.
+    list.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', async () => {
+      const { step, trip, load, name } = b.dataset;
+      if (step !== 'delivered') {
+        const label = { at_pickup: 'at pickup', loaded: 'loaded', at_drop: 'arrived at the destination' }[step];
+        if (!(await Ibraya.dialog({ title: `${name}'s truck is ${label}?`, message: 'The shipper sees this straight away. Normally the driver marks it in the app.', okText: 'Yes, mark it' }))) return;
+        return ctx.busy(b, null, async () => { await ctx.rpc('trip_step', { p_trip: trip, p_step: step }); await renderTrucks(loadId); });
+      }
+      const pick = document.createElement('input');
+      pick.type = 'file';
+      pick.accept = 'image/*,application/pdf';
+      pick.addEventListener('change', () => {
+        const file = pick.files[0];
+        if (!file) return;
+        ctx.busy(b, null, async () => {
+          const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg';
+          const path = `${load}/${trip}-${Date.now()}.${ext}`;
+          const up = await sb.storage.from('trip-pod').upload(path, file, { contentType: file.type || undefined });
+          if (up.error) throw up.error;
+          await ctx.rpc('trip_step', { p_trip: trip, p_step: 'delivered', p_pod_path: path });
+          await renderTrucks(loadId);
+        });
+      });
+      if (await Ibraya.dialog({ title: `Mark ${name}'s truck delivered?`, message: 'Choose a photo of the signed bilty / receipt. The shipper can see it.', okText: 'Choose photo' })) pick.click();
     }));
     list.querySelectorAll('[data-pod]').forEach((b) => b.addEventListener('click', () => ctx.busy(b, null, async () => {
       const win = window.open('', '_blank');
