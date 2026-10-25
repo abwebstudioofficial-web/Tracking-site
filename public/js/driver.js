@@ -51,6 +51,7 @@
     }
   }
   showCompany().catch(() => {});
+  IbrayaJobs.start(profile.id);
 
   // Role changes by the admin show up immediately; removal signs the driver out.
   sb.channel('my-profile')

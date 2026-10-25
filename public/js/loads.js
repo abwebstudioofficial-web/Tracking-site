@@ -53,6 +53,8 @@ window.HubLoads = (() => {
   let openLoad = null;
   let live = null;
   let refreshTimer = null;
+  let tripsTimer = null;
+  let tripsMap = null;
 
   function route(l) {
     const place = (p) => (p ? `<small>${esc(p)}</small>` : '');
@@ -208,6 +210,8 @@ window.HubLoads = (() => {
   // ---------- one load: details, open bids, bid / book ----------
   function closeDetail() {
     openLoad = null;
+    clearTimeout(tripsTimer);
+    if (tripsMap) { tripsMap.remove(); tripsMap = null; }
     const s = document.getElementById('load-sheet');
     if (s) s.remove();
     document.body.classList.remove('sheet-open');
@@ -259,6 +263,7 @@ window.HubLoads = (() => {
           <div>${esc(c.person || '')} ${c.person_phone ? `· <a href="tel:${esc(c.person_phone)}">${esc(localPhone(c.person_phone))}</a>` : ''}</div>
           ${c.phone && c.phone !== c.person_phone ? `<div>Office: <a href="tel:${esc(c.phone)}">${esc(localPhone(c.phone))}</a></div>` : ''}
           ${c.person_phone ? `<a class="btn btn-small wa" target="_blank" rel="noopener" href="https://wa.me/${esc(c.person_phone.replace(/\D/g, ''))}">WhatsApp</a>` : ''}</div>` : ''}
+      ${(l.status === 'booked' || l.status === 'delivered') && (l.mine || (myBid && myBid.status === 'accepted')) ? '<section class="trucks" id="trucks"><h3>Trucks · ٹرک</h3><p class="muted">Loading…</p></section>' : ''}
       ${d.can_bid ? `
         <form id="bid-form" class="bid-form" novalidate>
           <h3>${myBid && myBid.status === 'active' ? 'Change your bid' : 'Your price for this load'} · آپ کا کرایہ</h3>
@@ -279,6 +284,8 @@ window.HubLoads = (() => {
           <button class="btn btn-ghost btn-small" id="cancel-load">Cancel load</button></div>` : ''}`;
     const s = sheet.querySelector('.sheet-body');
     s.querySelector('.sheet-close').addEventListener('click', closeDetail);
+    if (tripsMap) { tripsMap.remove(); tripsMap = null; }
+    if (s.querySelector('#trucks')) renderTrucks(l.id);
     const bf = s.querySelector('#bid-form');
     if (bf) {
       bf.addEventListener('submit', (e) => {
@@ -316,6 +323,110 @@ window.HubLoads = (() => {
     });
   }
 
+  // ---------- trucks on a booked load: assign drivers, follow them, proof of delivery ----------
+  const ACTIVE = ['assigned', 'at_pickup', 'loaded', 'at_drop'];
+  const TRIP_STATUS = {
+    assigned: ['Going to pickup', 'warn'], at_pickup: ['At pickup', 'warn'], loaded: ['Loaded, on the way', 'warn'],
+    at_drop: ['At destination', 'warn'], delivered: ['Delivered ✓', 'ok'],
+  };
+  const TRIP_STEPS = [['at_pickup', 'Pickup'], ['loaded', 'Loaded'], ['at_drop', 'Arrived'], ['delivered', 'Delivered']];
+  const time = (t) => new Date(t).toLocaleString('en-PK', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const mapsAt = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`;
+
+  function tripRow(t, canAssign) {
+    const [label, cls] = TRIP_STATUS[t.status];
+    const loc = t.location;
+    const seen = loc && loc.at ? ago(loc.at) : '';
+    return `<div class="row trip">
+      <div class="row-main"><b>${esc(t.driver.name)}</b> <span class="pill small ${cls}">${label}</span>
+        <div class="muted small"><a href="tel:${esc(t.driver.phone)}">${esc(localPhone(t.driver.phone))}</a>${loc ? ` · last seen ${seen} · <a target="_blank" rel="noopener" href="${mapsAt(loc.lat, loc.lng)}">on map</a>${loc.problem ? ' · ⚠ tracking problem' : ''}` : ''}</div>
+        <div class="trip-steps">${TRIP_STEPS.map(([k, v]) => {
+          const st = t.steps[k];
+          return `<span class="${st ? 'done' : ''}">${v}${st ? `<small>${time(st.at)}${st.lat != null ? ` · <a target="_blank" rel="noopener" href="${mapsAt(st.lat, st.lng)}">where</a>` : ' · no GPS'}</small>` : ''}</span>`;
+        }).join('')}</div></div>
+      <div class="row-actions">
+        ${t.has_pod ? `<button class="btn btn-ghost btn-small" data-pod="${esc(t.pod_path)}">Bilty photo</button>` : ''}
+        ${canAssign && (t.status === 'assigned' || t.status === 'at_pickup') ? `<button class="btn btn-ghost btn-small" data-unassign="${t.id}" data-name="${esc(t.driver.name)}">Remove</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  async function renderTrucks(loadId) {
+    clearTimeout(tripsTimer);
+    const el = document.getElementById('trucks');
+    if (!el) return;
+    let d;
+    try { d = await ctx.rpc('load_trips', { p_load: loadId }); } catch (err) {
+      el.innerHTML = `<h3>Trucks</h3><p class="error">${esc(Ibraya.friendlyError(err))}</p>`;
+      return;
+    }
+    if (openLoad !== loadId || !document.getElementById('trucks')) return;
+    const active = d.trips.filter((t) => ACTIVE.includes(t.status));
+    const free = (d.drivers || []).filter((x) => !x.busy);
+    if (!el.querySelector('#trucks-list')) {
+      el.innerHTML = `<h3>Trucks · ٹرک <span id="trucks-count"></span></h3>
+        <div class="trip-map" id="trip-map" hidden></div><div class="rows" id="trucks-list"></div><div id="assign-box"></div>`;
+    }
+    el.querySelector('#trucks-count').textContent = `(${d.trips.length} of ${d.trucks})`;
+    const list = el.querySelector('#trucks-list');
+    list.innerHTML = d.trips.length ? d.trips.map((t) => tripRow(t, d.can_assign)).join('')
+      : `<p class="muted">${d.can_assign ? 'Assign a driver from your team for each truck.' : 'The carrier hasn\'t assigned a driver yet.'}</p>`;
+    const assign = el.querySelector('#assign-box');
+    assign.innerHTML = d.can_assign && d.trips.length < d.trucks ? (d.drivers.length ? `
+      <form class="assign-form" id="assign-form">
+        <select name="driver" class="select">${free.length ? free.map((x) => `<option value="${x.id}">${esc(x.name)} · ${esc(localPhone(x.phone))}</option>`).join('') : '<option value="">All your drivers are on other jobs</option>'}
+          ${d.drivers.filter((x) => x.busy).map((x) => `<option disabled>${esc(x.name)} (on another job)</option>`).join('')}</select>
+        <button class="btn btn-small" ${free.length ? '' : 'disabled'}>Assign driver</button>
+      </form><div class="error" id="assign-error"></div>`
+      : '<p class="muted">Add drivers to your company first (Team tab), then assign them here.</p>') : '';
+    const af = assign.querySelector('#assign-form');
+    if (af) af.addEventListener('submit', (e) => {
+      e.preventDefault();
+      ctx.busy(af.querySelector('button'), assign.querySelector('#assign-error'), async () => {
+        await ctx.rpc('assign_driver', { p_load: loadId, p_driver: af.driver.value });
+        await renderTrucks(loadId);
+      });
+    });
+    list.querySelectorAll('[data-unassign]').forEach((b) => b.addEventListener('click', async () => {
+      if (!(await Ibraya.dialog({ title: `Take ${b.dataset.name} off this job?`, okText: 'Remove', danger: true }))) return;
+      ctx.busy(b, null, async () => { await ctx.rpc('unassign_trip', { p_trip: b.dataset.unassign }); await renderTrucks(loadId); });
+    }));
+    list.querySelectorAll('[data-pod]').forEach((b) => b.addEventListener('click', () => ctx.busy(b, null, async () => {
+      const win = window.open('', '_blank');
+      const { data, error } = await sb.storage.from('trip-pod').createSignedUrl(b.dataset.pod, 300);
+      if (error) { if (win) win.close(); throw error; }
+      if (win) win.location = data.signedUrl; else location.href = data.signedUrl;
+    })));
+    drawTripMap(active.filter((t) => t.location));
+    // While trucks are on the road, keep their positions fresh.
+    if (active.length) tripsTimer = setTimeout(() => renderTrucks(loadId), 20000);
+  }
+
+  function drawTripMap(trips) {
+    const box = document.getElementById('trip-map');
+    if (!box || !window.L) return;
+    box.hidden = !trips.length;
+    if (!trips.length) return;
+    if (!tripsMap) {
+      tripsMap = L.map(box, { zoomControl: true, attributionControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(tripsMap);
+      tripsMap._ibLayer = L.layerGroup().addTo(tripsMap);
+      tripsMap._ibFitted = false;
+    }
+    const layer = tripsMap._ibLayer;
+    layer.clearLayers();
+    const pts = trips.map((t) => {
+      const p = [t.location.lat, t.location.lng];
+      L.marker(p, { icon: L.divIcon({ className: 'trip-pin', html: `<span>🚚 ${esc(t.driver.name)}</span>`, iconSize: null }) }).addTo(layer);
+      return p;
+    });
+    if (!tripsMap._ibFitted) {
+      if (pts.length === 1) tripsMap.setView(pts[0], 12); else tripsMap.fitBounds(pts, { padding: [30, 30] });
+      tripsMap._ibFitted = true;
+    }
+    setTimeout(() => tripsMap && tripsMap.invalidateSize(), 50);
+  }
+
   // Live: a new load or bid anywhere I can see refreshes the open list and load.
   function listen() {
     if (live) return;
@@ -331,6 +442,7 @@ window.HubLoads = (() => {
     live = sb.channel('loads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'loads' }, changed)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, changed)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, () => { if (openLoad && document.getElementById('trucks')) renderTrucks(openLoad); })
       .subscribe();
   }
 

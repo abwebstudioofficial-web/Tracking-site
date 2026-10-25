@@ -511,3 +511,38 @@ body.sheet-open { overflow: hidden; }
   .sheet { max-width: none; max-height: 92vh; border-radius: 20px 20px 0 0; }
   .seg { grid-template-columns: 1fr; }
 }
+
+/* ---------- Transport Hub: driver's job (driver page) ---------- */
+.job { border: 2px solid var(--accent-text); border-radius: 16px; padding: 14px; margin: 0 0 16px; display: grid; gap: 10px; background: var(--panel-2); text-align: left; }
+.job-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.job-route { display: grid; gap: 8px; }
+.job-route > div { border-left: 4px solid var(--line); padding: 2px 0 2px 10px; display: grid; }
+.job-route > div.now { border-color: var(--accent-text); }
+.job-route > div.done { opacity: .6; }
+.job-route small { color: var(--muted); font-size: 12px; }
+.job-route b { font-size: 17px; }
+.job-route span { font-size: 13px; color: var(--muted); }
+.job-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.job-progress span { text-align: center; font-size: 11px; font-weight: 700; padding: 5px 2px; border-radius: 8px; background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+.job-progress span.done { background: var(--online); border-color: var(--online); color: #fff; }
+.job-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.job-actions .btn { flex: 1 1 auto; text-align: center; text-decoration: none; padding: 10px 12px; }
+.job-next { font-size: 16px; padding: 14px; }
+.job-next span { display: block; font-size: 15px; font-weight: 600; direction: rtl; margin-top: 2px; }
+
+/* ---------- Transport Hub: trucks on a booked load (hub) ---------- */
+.trip-map { height: 240px; border-radius: 14px; border: 1px solid var(--line); margin: 0 0 10px; overflow: hidden; }
+.trip-pin span {
+  display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; font: 700 12px system-ui, sans-serif;
+  background: #fff; color: #16202a; border: 2px solid #4c6b00; border-radius: 99px; padding: 3px 8px; box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+.row.trip a { color: var(--accent-text); font-weight: 600; }
+.trip-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.trip-steps span { font-size: 11.5px; font-weight: 700; text-align: center; padding: 5px 3px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+.trip-steps span.done { border-color: var(--online); color: var(--text); }
+.trip-steps small { display: block; font-weight: 500; font-size: 10.5px; color: var(--muted); }
+.assign-form { display: flex; gap: 8px; margin-top: 10px; }
+.assign-form .select { flex: 1; min-width: 0; }
+@media (max-width: 560px) {
+  .trip-steps { grid-template-columns: 1fr 1fr; }
+}
