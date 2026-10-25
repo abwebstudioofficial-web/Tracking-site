@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "^2.118.0",
     "express": "^4.21.2",
     "leaflet": "^1.9.4",
-    "maplibre-gl": "4.7.1"
+    "maplibre-gl": "4.7.1",
+    "three": "0.170.0"
   }
 }

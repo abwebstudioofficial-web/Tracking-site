@@ -70,6 +70,9 @@ app.get('/vendor/maplibre-leaflet.js', (req, res) =>
 app.get('/vendor/rtl-text.js', (req, res) =>
   res.sendFile(path.join(pkgDir('@mapbox/mapbox-gl-rtl-text'), 'mapbox-gl-rtl-text.min.js'))
 );
+app.get('/vendor/three.module.min.js', (req, res) =>
+  res.sendFile(path.join(__dirname, 'node_modules', 'three', 'build', 'three.module.min.js'))
+);
 app.get('/vendor/supabase.js', (req, res) =>
   res.sendFile(path.join(path.dirname(require.resolve('@supabase/supabase-js/package.json')), 'dist/umd/supabase.js'))
 );

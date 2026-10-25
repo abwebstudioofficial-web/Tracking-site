@@ -649,3 +649,9 @@ body.sheet-open { overflow: hidden; }
 .fee-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .fee-form .select { max-width: 180px; }
 @media (max-width: 560px) { .fleet-map { height: 300px; } }
+
+/* 3D vehicles (js/vehicles3d.js) draw the truck; the marker keeps its name tag, click area and pulse */
+.vehicles-3d #map .truck .truck-rot { opacity: 0; }
+.vehicles-3d #map .truck .pulse { inset: 10px; }
+.ctrl-3d { font-size: 16px; line-height: 1; }
+.ctrl-3d.on { background: #d6f7f3 !important; }

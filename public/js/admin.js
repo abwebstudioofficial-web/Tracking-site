@@ -126,6 +126,49 @@
         ['var', 'en']]];
   }
 
+  // Roads first: wider roads, clearer road names and highway numbers, faint flat buildings.
+  // 3D buildings are off; the 🏢 button on the map turns them on.
+  const ROAD = /^(road|bridge|tunnel)_(motorway|trunk_primary|secondary_tertiary|link|motorway_link|minor|street|service_track)(_casing)?$/;
+  function scaleWidth(w, k) {
+    if (Array.isArray(w) && w[0] === 'interpolate') return w.map((v, i) => (i > 3 && i % 2 === 1 && typeof v === 'number' ? v : (i > 3 && typeof v === 'number' ? v * k : v)));
+    if (w && w.stops) return { ...w, stops: w.stops.map(([z, v]) => [z, v * k]) };
+    return typeof w === 'number' ? w * k : w;
+  }
+  function roadsFirst(style) {
+    for (const l of style.layers) {
+      if (l.type === 'line' && ROAD.test(l.id) && l.paint && l.paint['line-width'] != null) {
+        l.paint['line-width'] = scaleWidth(l.paint['line-width'], 1.35);
+      }
+      if (l.id === 'building') l.paint = { ...l.paint, 'fill-opacity': 0.35 };
+      if (l.id === 'building-3d') l.layout = { ...(l.layout || {}), visibility: 'none' };
+      if (/^highway-name/.test(l.id) && l.layout) {
+        l.layout['text-size'] = ['interpolate', ['linear'], ['zoom'], 12, 11, 15, 13, 18, 15];
+        l.paint = { ...l.paint, 'text-color': '#1f2a33', 'text-halo-color': '#ffffff', 'text-halo-width': 2 };
+        if (l.id === 'highway-name-minor') l.minzoom = 14;
+        if (l.id === 'highway-name-path') l.minzoom = 16;
+      }
+      if (/^poi_/.test(l.id)) l.minzoom = Math.max(l.minzoom || 0, 16); // fewer shop icons over the roads
+    }
+  }
+  // 🏢 button: 3D buildings on / off.
+  class BuildingsControl {
+    onAdd(m) {
+      this.el = document.createElement('div');
+      this.el.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+      this.el.innerHTML = '<button type="button" class="ctrl-3d" title="3D buildings on / off" aria-label="3D buildings">🏢</button>';
+      this.el.querySelector('button').addEventListener('click', () => {
+        if (!m.getLayer('building-3d')) return;
+        const on = m.getLayoutProperty('building-3d', 'visibility') === 'none';
+        m.setLayoutProperty('building-3d', 'visibility', on ? 'visible' : 'none');
+        this.el.querySelector('button').classList.toggle('on', on);
+        if (on && m.getPitch() < 30) m.easeTo({ pitch: 55 });
+      });
+      return this.el;
+    }
+    onRemove() { this.el.remove(); }
+  }
+  map.gl.addControl(new BuildingsControl(), 'top-right');
+
   async function addBaseMap() {
     try {
       // Joins Urdu/Arabic letters correctly and draws them right-to-left.
@@ -133,6 +176,7 @@
       const res = await fetch('https://tiles.openfreemap.org/styles/liberty');
       if (!res.ok) throw new Error(`style ${res.status}`);
       const style = await res.json();
+      roadsFirst(style);
       for (const layer of style.layers) {
         const field = layer.layout && layer.layout['text-field'];
         const text = JSON.stringify(field || '');
@@ -160,6 +204,24 @@
   // Turning the map: every truck keeps pointing the way it really drives.
   map.on('rotate', () => GL.rotateWithMap(map.getContainer(), map.getBearing()));
   map.getContainer().addEventListener('wheel', () => { userMovedMap = true; }, { passive: true });
+
+  // 3D trucks and cars (js/vehicles3d.js). Until it has loaded, or if 3D can't run, the flat ones show.
+  let vehicles3d = null;
+  function startVehicles3d() {
+    try {
+      Vehicles3D.attach(map.gl);
+      vehicles3d = Vehicles3D;
+      users.forEach(renderMarker);
+    } catch { vehicles3d = null; document.documentElement.classList.remove('vehicles-3d'); }
+  }
+  if (window.Vehicles3D) startVehicles3d(); else window.addEventListener('vehicles3d-ready', startVehicles3d, { once: true });
+  function vehicleState(id) {
+    const u = users.get(id);
+    const m = markers.get(id);
+    if (!u || !m || !u.location || !map.hasLayer(fleetLayer)) return null;
+    const ll = m.getLatLng();
+    return { lat: ll.lat, lng: ll.lng, heading: u.location.heading ?? 0, status: statusOf(u), urgency: u.urgency };
+  }
 
   // A top-down truck that turns to face the direction it's driving:
   //   cab       = live status colour (green / amber / grey / red)
@@ -279,6 +341,7 @@
     const step = (t) => {
       const k = Math.min(1, (t - now) / duration); // steady speed: no speeding up or slowing down
       m.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]);
+      if (vehicles3d) vehicles3d.repaint();
       if (k < 1) m._glide = requestAnimationFrame(step);
     };
     m._glide = requestAnimationFrame(step);
@@ -288,6 +351,7 @@
     let m = markers.get(u.id);
     if (!u.location || !isTracked(u)) {
       if (m) { m.remove(); markers.delete(u.id); }
+      if (vehicles3d) vehicles3d.remove(u.id);
       return;
     }
     const latlng = [u.location.lat, u.location.lng];
@@ -302,6 +366,7 @@
       m.setPopupContent(popupHtml(u));
     }
     m.setZIndexOffset(isLive(u) ? 1000 : 0);
+    if (vehicles3d) vehicles3d.set(u.id, u.role === 'admin' ? 'car' : 'truck', u.truckSize === '40ft', () => vehicleState(u.id));
   }
 
   function fitAll() {
@@ -843,6 +908,7 @@
     sidebar.classList.add('open');
     map.removeLayer(fleetLayer);
     historyLayer.addTo(map);
+    if (vehicles3d) vehicles3d.repaint();
     loadHistory(true);
     clearInterval(historyTimer);
     // Today's route keeps growing: refresh it every minute.
@@ -856,6 +922,7 @@
     historyLayer.clearLayers();
     map.removeLayer(historyLayer);
     fleetLayer.addTo(map);
+    if (vehicles3d) vehicles3d.repaint();
   }
 
   function changeDay(ms) {
