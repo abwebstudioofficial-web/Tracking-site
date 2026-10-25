@@ -73,6 +73,12 @@
       bellStarted = true;
       HubMoney.initBell({ rpc, openLoad: (id) => HubLoads.open(id, { busy, rpc, go: (t) => { tab = t; renderDashboard(); } }) });
     }
+    // Opened from a notification: /hub?load=<id> shows that load.
+    const fromAlert = new URLSearchParams(location.search).get('load');
+    if (fromAlert && state.company) {
+      history.replaceState(null, '', '/hub');
+      HubLoads.open(fromAlert, { busy, rpc, go: (t) => { tab = t; renderDashboard(); } });
+    }
   }
 
   function render() {

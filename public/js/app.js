@@ -141,7 +141,39 @@ window.Ibraya = (() => {
       location.replace(home);
       return null;
     }
+    setupPush();
     return profile;
+  }
+
+  // ---------- pop-up notifications (in the app, Firebase) ----------
+  // After sign-in the phone registers for notifications (new jobs, bids, deliveries, payments...).
+  // Tapping one opens the page it is about. Older app versions without the plugin skip this.
+  const PUSH_KEY = 'th-push-token';
+  const push = cap && cap.Plugins ? cap.Plugins.PushNotifications || null : null;
+  let pushStarted = false;
+  async function setupPush() {
+    if (!push || pushStarted) return;
+    pushStarted = true;
+    try {
+      await push.addListener('registration', ({ value }) => {
+        try { localStorage.setItem(PUSH_KEY, value); } catch { /* private mode */ }
+        sb.rpc('save_push_token', { p_token: value }).then(() => {}, () => {});
+      });
+      await push.addListener('pushNotificationActionPerformed', ({ notification }) => {
+        const url = notification && notification.data && notification.data.url;
+        if (typeof url === 'string' && url.startsWith('/')) location.href = url;
+      });
+      let perm = await push.checkPermissions();
+      if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await push.requestPermissions();
+      if (perm.receive === 'granted') await push.register();
+    } catch { /* notifications are a bonus: never block the page */ }
+  }
+  async function forgetPush() {
+    if (!push) return;
+    let token = null;
+    try { token = localStorage.getItem(PUSH_KEY); localStorage.removeItem(PUSH_KEY); } catch { /* ignore */ }
+    if (token) await sb.rpc('delete_push_token', { p_token: token }).then(() => {}, () => {});
+    await push.unregister().catch(() => {});
   }
 
   // Go to the sign-in page once, even if several things trigger it at the same moment.
@@ -154,6 +186,7 @@ window.Ibraya = (() => {
 
   async function signOut() {
     if (leaving) return;
+    await forgetPush();
     if (tracker) {
       // Stop 24/7 tracking on this phone and cancel its device token.
       await sb.rpc('unregister_my_tracker_devices').then(() => {}, () => {});
