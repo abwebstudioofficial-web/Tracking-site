@@ -119,11 +119,12 @@
 
   // ---------- register my company ----------
   function companyFields(c = {}, withKind = true) {
+    const k = KIND_INFO[c.kind];
     return `
-      ${withKind ? `<div class="field"><span>What does your business do? · آپ کا کاروبار کیا ہے؟</span>
-        <div class="kind-grid">${Object.entries(COMPANY_KINDS).map(([k, v]) => `
-          <label class="kind"><input type="radio" name="kind" value="${k}" ${c.kind === k ? 'checked' : ''}>
-            <b>${v.en} · ${v.ur}</b><span>${esc(v.about)}</span></label>`).join('')}</div></div>` : ''}
+      ${withKind && k ? `<div class="field"><span>Your business · آپ کا کاروبار</span>
+        <div class="kind-chosen"><span class="kind-icon">${k.icon}</span>
+          <div><b>${COMPANY_KINDS[c.kind].en} · ${COMPANY_KINDS[c.kind].ur}</b><span>${esc(k.line)}</span></div>
+          <button type="button" class="btn btn-ghost btn-small" id="change-kind">Change · تبدیل</button></div></div>` : ''}
       <label class="field"><span>Company name · کمپنی کا نام</span>
         <input name="name" maxlength="100" value="${esc(c.name)}" placeholder="e.g. Al-Madina Goods Transport" required></label>
       <label class="field"><span>City · شہر</span>
@@ -142,30 +143,119 @@
   }
   const readFleet = (f) => (f.fleet && f.fleet.value !== '' ? Math.max(0, Math.min(10000, parseInt(f.fleet.value, 10) || 0)) : null);
 
-  function renderOnboarding() {
+  // ---------- welcome pop-up: "What do you do?" ----------
+  // Big, clear choices with what each one can do here, then a "Yes, that's me" check, so nobody
+  // becomes a broker by tapping the wrong box. The type can't be changed later without an admin.
+  const KIND_INFO = {
+    shipper: {
+      icon: '📦', line: 'I have goods to send: factory, trader, importer or exporter · میرے پاس بھیجنے کے لیے سامان ہے',
+      can: ['Post loads (city to city, or to / from the port) · لوڈ پوسٹ کریں', 'See every carrier\'s price and book the best one · ریٹ دیکھیں اور بک کریں', 'Watch your truck live on the map · ٹرک کو لائیو دیکھیں', 'Get proof of delivery and invoices · ڈیلیوری کا ثبوت اور انوائس'],
+    },
+    carrier: {
+      icon: '🚛', line: 'I own or run trucks · میرے پاس ٹرک ہیں',
+      can: ['Find loads and give your price · لوڈ ڈھونڈیں اور ریٹ دیں', 'Add your drivers and send them jobs · ڈرائیور شامل کریں اور کام دیں', 'See all your trucks on one map · سب ٹرک ایک نقشے پر', 'Get paid with invoices (a small fee per booked trip) · انوائس سے ادائیگی'],
+    },
+    broker: {
+      icon: '🤝', line: 'I arrange trucks for other people\'s goods (my own trucks not needed) · میں دوسروں کے سامان کے لیے ٹرک کا انتظام کرتا ہوں',
+      can: ['Post loads for your clients · اپنے کلائنٹس کے لوڈ پوسٹ کریں', 'Also give prices on other people\'s loads · دوسروں کے لوڈ پر ریٹ دیں', 'Track the trucks you booked · بک کیے گئے ٹرک دیکھیں'],
+    },
+    dispatcher: {
+      icon: '📋', line: 'I find loads for truck owners and handle their bookings · میں ٹرک مالکان کے لیے لوڈ ڈھونڈتا ہوں',
+      can: ['Find loads and give prices for the carriers you work for · لوڈ ڈھونڈیں اور ریٹ دیں', 'Keep their trips on track · ان کے سفر سنبھالیں'],
+    },
+  };
+
+  function chooseKind(current) {
+    return new Promise((resolve) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'modal-backdrop';
+      wrap.innerHTML = '<div class="modal welcome" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="welcome-title"></div>';
+      const box = wrap.querySelector('.modal');
+      const close = (value) => { document.removeEventListener('keydown', onKey); wrap.remove(); resolve(value); };
+      const onKey = (e) => { if (e.key === 'Escape' && current) close(current); };
+      const pick = () => {
+        box.innerHTML = `
+          <div class="welcome-step">Step 1 of 2 · مرحلہ 1</div>
+          <h2 id="welcome-title">Welcome to Transport Hub, ${esc(state.me.name)}!<br>What do you do? · آپ کیا کام کرتے ہیں؟</h2>
+          <p class="modal-msg">Choose the one that fits your business. This decides what you can do on Transport Hub.</p>
+          <div class="welcome-grid">${Object.entries(KIND_INFO).map(([k, v]) => `
+            <button type="button" class="welcome-card${k === current ? ' on' : ''}" data-kind="${k}">
+              <span class="kind-icon">${v.icon}</span>
+              <b>${COMPANY_KINDS[k].en} · ${COMPANY_KINDS[k].ur}</b>
+              <span>${esc(v.line)}</span>
+            </button>`).join('')}</div>
+          <p class="welcome-note">🚚 <b>Truck driver?</b> You don't register a company. Your transport company adds you with your phone number, then you sign in with your phone. · ڈرائیور؟ آپ کی کمپنی آپ کو شامل کرے گی۔</p>
+          ${current ? '<div class="modal-actions"><button type="button" class="btn btn-ghost" data-keep>Keep my choice</button></div>' : ''}`;
+        box.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => confirm(b.dataset.kind)));
+        const keep = box.querySelector('[data-keep]');
+        if (keep) keep.addEventListener('click', () => close(current));
+        box.focus(); // not a card, so none looks chosen
+      };
+      const confirm = (k) => {
+        const v = KIND_INFO[k];
+        const name = COMPANY_KINDS[k];
+        box.innerHTML = `
+          <div class="welcome-step">Step 2 of 2 · مرحلہ 2</div>
+          <div class="welcome-big">${v.icon}</div>
+          <h2 id="welcome-title">You are a ${name.en} · آپ ${name.ur} ہیں</h2>
+          <p class="modal-msg">${esc(v.line)}</p>
+          <div class="welcome-can"><b>As a ${name.en} you can:</b><ul>${v.can.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+          <p class="welcome-note">Only a Transport Hub admin can change this later, so please check it's right.</p>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-back>← Back</button>
+            <button type="button" class="btn" data-yes>Yes, I'm a ${name.en}</button>
+          </div>`;
+        box.querySelector('[data-back]').addEventListener('click', pick);
+        box.querySelector('[data-yes]').addEventListener('click', () => close(k));
+        box.querySelector('[data-yes]').focus();
+      };
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(wrap);
+      pick();
+    });
+  }
+
+  let chosenKind = null;
+  let choosing = false;
+  async function renderOnboarding() {
+    if (!chosenKind) {
+      if (choosing) return; // the pop-up is already open
+      choosing = true;
+      main.innerHTML = '';
+      chosenKind = await chooseKind(null);
+      choosing = false;
+    }
     main.innerHTML = `
       <section class="panel-card narrow">
         <h1>Register your business · اپنا کاروبار رجسٹر کریں</h1>
         <p class="muted">Welcome, ${esc(state.me.name)}. A Transport Hub admin checks every company before it can post or take loads.</p>
         <form id="company-form" novalidate>
-          ${companyFields()}
+          ${companyFields({ kind: chosenKind })}
           <div class="error" id="company-error"></div>
           <button class="btn" id="company-submit">Register company · کمپنی رجسٹر کریں</button>
         </form>
         ${state.my_invites.length ? '<p class="link-row"><button class="link" id="see-invites">Back to my invites</button></p>' : ''}
       </section>`;
     const f = $('company-form');
-    f.querySelectorAll('[name=kind]').forEach((r) => r.addEventListener('change', () => { $('fleet-field').hidden = f.kind.value !== 'carrier'; }));
+    $('change-kind').addEventListener('click', async () => {
+      const k = await chooseKind(chosenKind);
+      if (k === chosenKind) return;
+      chosenKind = k;
+      const keep = Object.fromEntries(['name', 'city', 'address', 'ntn', 'cnic', 'fleet'].map((n) => [n, f[n].value]));
+      renderOnboarding();
+      const g = $('company-form');
+      Object.entries(keep).forEach(([n, v]) => { g[n].value = v; });
+    });
     const back = $('see-invites');
     if (back) back.addEventListener('click', () => { registering = false; render(); });
     f.addEventListener('submit', (e) => {
       e.preventDefault();
       busy($('company-submit'), $('company-error'), async () => {
-        if (!f.kind.value) throw new Error('Choose what your business does · اپنے کاروبار کی قسم چنیں');
+        if (!chosenKind) throw new Error('Choose what your business does · اپنے کاروبار کی قسم چنیں');
         if (f.name.value.trim().length < 2) throw new Error('Enter your company name · کمپنی کا نام لکھیں');
         if (f.city.value.trim().length < 2) throw new Error('Enter your city · شہر لکھیں');
         state = await rpc('create_my_company', {
-          p_kind: f.kind.value, p_name: f.name.value, p_city: f.city.value, p_address: f.address.value,
+          p_kind: chosenKind, p_name: f.name.value, p_city: f.city.value, p_address: f.address.value,
           p_ntn: f.ntn.value, p_cnic: f.cnic.value, p_fleet_size: readFleet(f),
         });
         tab = 'papers'; // next: upload papers so the admins can check

@@ -655,3 +655,33 @@ body.sheet-open { overflow: hidden; }
 .vehicles-3d #map .truck .pulse { inset: 10px; }
 .ctrl-3d { font-size: 16px; line-height: 1; }
 .ctrl-3d.on { background: #d6f7f3 !important; }
+
+/* welcome pop-up on the hub: "What do you do?" */
+.modal.welcome { max-width: 620px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.welcome-step { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 6px; }
+.welcome h2 { font-size: 20px; line-height: 1.35; }
+.welcome-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 12px; }
+.welcome-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: start;
+  padding: 16px 14px; border: 2px solid var(--line); border-radius: 16px; background: var(--panel-2);
+  color: var(--text); font: inherit; cursor: pointer; transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.welcome-card:hover, .welcome-card:focus-visible { border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-ring); transform: translateY(-1px); outline: none; }
+.welcome-card.on { border-color: var(--accent-text); }
+.welcome-card b { font-size: 16px; }
+.welcome-card span:not(.kind-icon) { font-size: 13px; color: var(--muted); line-height: 1.4; }
+.kind-icon { font-size: 30px; line-height: 1; }
+.welcome-big { font-size: 54px; line-height: 1; margin: 4px 0 8px; }
+.welcome-can { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; font-size: 14px; }
+.welcome-can ul { margin: 6px 0 0; padding-inline-start: 20px; }
+.welcome-can li { margin: 4px 0; }
+.welcome-note { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.kind-chosen {
+  display: flex; align-items: center; gap: 12px; padding: 12px; border: 2px solid var(--accent-text);
+  border-radius: 14px; background: var(--panel-2);
+}
+.kind-chosen > div { flex: 1; min-width: 0; }
+.kind-chosen b { display: block; font-size: 15px; }
+.kind-chosen span:not(.kind-icon) { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+@media (max-width: 560px) { .welcome-grid { grid-template-columns: 1fr; } .welcome-card { flex-direction: row; flex-wrap: wrap; align-items: center; } .welcome-card span:not(.kind-icon) { flex-basis: 100%; } }
+.modal.welcome:focus { outline: none; }
