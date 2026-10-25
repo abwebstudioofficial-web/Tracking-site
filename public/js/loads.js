@@ -75,7 +75,7 @@ window.HubLoads = (() => {
         <div class="load-top"><span class="tag ${l.trade}">${TRADE_SHORT[l.trade]}</span><span class="muted small">Pickup ${day(l.pickup_date)}</span>
           ${show === 'board' ? '' : `<span class="pill small ${cls}">${label}</span>`}</div>
         <div class="load-body"><div class="load-main">${route(l)}<div class="muted small">${facts}</div>
-          <div class="muted small">${l.mine ? 'Your load' : esc(l.poster.name)} · posted ${ago(l.created_at)}</div>${mine}</div>
+          <div class="muted small">${l.mine ? 'Your load' : `${esc(l.poster.name)} <span class="rating">${HubMoney.ratingText(l.poster.rating)}</span>`} · posted ${ago(l.created_at)}</div>${mine}</div>
           <div class="load-side">${right}</div></div>
       </button>`;
   }
@@ -250,7 +250,8 @@ window.HubLoads = (() => {
       <div class="row bid ${b.mine ? 'mine' : ''} ${b.status}">
         <div class="row-main"><b>${rs(b.amount)}</b> <span class="muted">· ${esc(b.company.name)}${b.mine ? ' (you)' : ''}</span>
           ${b.status === 'accepted' ? ' <span class="pill small ok">Booked</span>' : b.status !== 'active' ? ` <span class="pill small bad">${BID_STATUS[b.status]}</span>` : ''}
-          <div class="muted small">${esc(Ibraya.COMPANY_KINDS[b.company.kind].en)} · ${esc(b.company.city)}${b.company.fleet_size ? ` · ${b.company.fleet_size} trucks` : ''} · ${ago(b.updated_at)}${b.note ? ` · “${esc(b.note)}”` : ''}</div></div>
+          <div class="muted small">${esc(Ibraya.COMPANY_KINDS[b.company.kind].en)} · ${esc(b.company.city)}${b.company.fleet_size ? ` · ${b.company.fleet_size} trucks` : ''} · ${ago(b.updated_at)}${b.note ? ` · “${esc(b.note)}”` : ''}</div>
+          <div class="small rating">${HubMoney.ratingText(b.company.rating)}</div></div>
         ${d.can_manage && l.status === 'open' && b.status === 'active' ? `<div class="row-actions"><button class="btn btn-small" data-accept="${b.id}" data-amount="${b.amount}" data-name="${esc(b.company.name)}">Book · بک کریں</button></div>` : ''}
       </div>`;
     const c = d.contact;
@@ -263,6 +264,8 @@ window.HubLoads = (() => {
           <div>${esc(c.person || '')} ${c.person_phone ? `· <a href="tel:${esc(c.person_phone)}">${esc(localPhone(c.person_phone))}</a>` : ''}</div>
           ${c.phone && c.phone !== c.person_phone ? `<div>Office: <a href="tel:${esc(c.phone)}">${esc(localPhone(c.phone))}</a></div>` : ''}
           ${c.person_phone ? `<a class="btn btn-small wa" target="_blank" rel="noopener" href="https://wa.me/${esc(c.person_phone.replace(/\D/g, ''))}">WhatsApp</a>` : ''}</div>` : ''}
+      ${d.invoice_id ? `<a class="btn btn-small invoice-link" href="/invoice?id=${encodeURIComponent(d.invoice_id)}">🧾 Open invoice</a>` : ''}
+      ${HubMoney.ratingBlock(d.rating)}
       ${(l.status === 'booked' || l.status === 'delivered') && (l.mine || (myBid && myBid.status === 'accepted')) ? '<section class="trucks" id="trucks"><h3>Trucks · ٹرک</h3><p class="muted">Loading…</p></section>' : ''}
       ${d.can_bid ? `
         <form id="bid-form" class="bid-form" novalidate>
@@ -286,6 +289,7 @@ window.HubLoads = (() => {
     s.querySelector('.sheet-close').addEventListener('click', closeDetail);
     if (tripsMap) { tripsMap.remove(); tripsMap = null; }
     if (s.querySelector('#trucks')) renderTrucks(l.id);
+    HubMoney.wireRating(s, l.id, { rpc: ctx.rpc, busy: ctx.busy, after: renderDetail });
     const bf = s.querySelector('#bid-form');
     if (bf) {
       bf.addEventListener('submit', (e) => {
@@ -454,7 +458,14 @@ window.HubLoads = (() => {
     if (tab === 'myloads' || tab === 'mybids') return renderList(tab);
   }
 
+  // Open one load from elsewhere (an alert), whatever tab is showing.
+  function open(id, context) {
+    if (!ctx) ctx = { ...context, tab: null };
+    listen();
+    openDetail(id);
+  }
+
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openLoad && !document.querySelector('.modal-backdrop')) closeDetail(); });
 
-  return { tabs, firstTab, render };
+  return { tabs, firstTab, render, open };
 })();

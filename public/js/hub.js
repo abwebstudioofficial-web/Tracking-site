@@ -63,10 +63,16 @@
     return data;
   }
 
+  let bellStarted = false;
   async function load() {
     state = await rpc('my_company');
     if (isAdmin) companies = await rpc('admin_list_companies');
     render();
+    // Alerts for the company's owner and managers.
+    if (!bellStarted && state.company && (state.role === 'owner' || state.role === 'manager')) {
+      bellStarted = true;
+      HubMoney.initBell({ rpc, openLoad: (id) => HubLoads.open(id, { busy, rpc, go: (t) => { tab = t; renderDashboard(); } }) });
+    }
   }
 
   function render() {
@@ -176,7 +182,8 @@
     const pending = isAdmin && companies ? companies.filter((x) => x.company.status === 'pending').length : 0;
     const loadTabs = c.status === 'verified' ? HubLoads.tabs(c, role) : [];
     if (!tab) tab = loadTabs.length ? HubLoads.firstTab(c) : 'overview';
-    const tabs = [...loadTabs, ['overview', 'Details'], ['team', `Team (${state.members.length})`]];
+    const tabs = [...loadTabs, ...(loadTabs.length && staff ? [['invoices', 'Invoices']] : []),
+      ['overview', 'Details'], ['team', `Team (${state.members.length})`]];
     if (staff) tabs.push(['papers', 'Papers']);
     if (isAdmin) tabs.push(['admin', `Companies${pending ? ` <span class="count">${pending}</span>` : ''}`]);
     if (!tabs.some(([k]) => k === tab)) tab = 'overview';
@@ -193,6 +200,7 @@
     main.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; editing = false; renderDashboard(); }));
     const page = { overview: renderOverview, team: renderTeam, papers: renderPapers, admin: renderAdmin }[tab];
     if (page) return page();
+    if (tab === 'invoices') return HubMoney.renderInvoices($('tab-body'), { rpc });
     HubLoads.render(tab, { body: $('tab-body'), busy, rpc, go: (t) => { tab = t; renderDashboard(); } });
   }
 
@@ -240,6 +248,9 @@
         <div class="card-head"><h2>Company details</h2>${state.role === 'owner' ? '<button class="btn btn-ghost btn-small" id="edit">Edit</button>' : ''}</div>
         ${detailRows(c)}
       </div>
+      ${c.status === 'verified' ? `<div class="panel-card"><h2>Your reputation · ساکھ</h2>
+        <p id="reputation" class="muted">Loading…</p>
+        <p class="muted small">Other companies see this next to your bids and loads. It grows with every delivered load and rating.</p></div>` : ''}
       ${c.status === 'verified' ? '' : `<div class="panel-card coming">
         <h2>The load board opens once you're verified · تصدیق کے بعد لوڈ بورڈ</h2>
         <p class="muted">${c.kind === 'shipper'
@@ -248,6 +259,11 @@
       </div>`}`;
     const edit = $('edit');
     if (edit) edit.addEventListener('click', () => { editing = true; renderOverview(); });
+    if ($('reputation')) {
+      rpc('company_rating', { p_company: c.id })
+        .then((r) => { if ($('reputation')) $('reputation').innerHTML = HubMoney.ratingText(r, { long: true }); })
+        .catch(() => { if ($('reputation')) $('reputation').textContent = ''; });
+    }
   }
 
   // ---------- team ----------

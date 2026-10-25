@@ -22,6 +22,7 @@ app.get('/login', page('login.html'));
 app.get('/driver', page('driver.html'));
 app.get('/admin', page('admin.html'));
 app.get('/hub', page('hub.html'));
+app.get('/invoice', page('invoice.html'));
 app.get('/download', page('download.html'));
 
 // The Android app is built by GitHub (.github/workflows/android.yml) and published as the latest
