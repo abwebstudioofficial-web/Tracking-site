@@ -1,6 +1,7 @@
 // Transport Hub wallet (see supabase/migrations/20261026200000_wallet.sql).
-// - Carriers, brokers and dispatchers: balance, "Add money" by JazzCash (send money, then enter
-//   the amount, transaction ID and a screenshot), and the history. Fees are taken on delivery.
+// - Carriers, brokers and dispatchers: balance, "Add money" by JazzCash, and the history. Fees are
+//   taken on delivery. With the JazzCash gateway set up: pay in the app (MPIN on the phone); until
+//   then: send to Transport Hub's account, then enter the amount, transaction ID and a screenshot.
 // - Admins (Wallets tab): JazzCash payments to check (approve / reject), every company's balance
 //   with add / take money by hand, and the JazzCash details shown to companies.
 window.HubWallet = (() => {
@@ -101,9 +102,10 @@ window.HubWallet = (() => {
           <div class="error" id="app-pay-error"></div>
           <button class="btn btn-jazz" id="app-pay-submit">Pay with JazzCash</button>
         </form>
+        <p class="muted small">The Transport Hub fee (${rs(d.fee_per_trip)} per truck trip) is taken from this wallet when a trip is delivered. To bid on a load, your wallet needs enough for that load's fee.</p>
       </div>` : ''}
-      <div class="panel-card narrow">
-        <h2>${app ? 'Or send it yourself' : 'Add money · رقم جمع کریں'}</h2>
+      ${app ? '' : `<div class="panel-card narrow">
+        <h2>Add money · رقم جمع کریں</h2>
         <ol class="steps-list">
           <li>Send the money from your JazzCash app to Transport Hub:</li>
         </ol>
@@ -122,7 +124,7 @@ window.HubWallet = (() => {
           <button class="btn" id="deposit-submit">I have sent it · بھیج دیا</button>
         </form>
         <p class="muted small">The Transport Hub fee (${rs(d.fee_per_trip)} per truck trip) is taken from this wallet when a trip is delivered. To bid on a load, your wallet needs enough for that load's fee.</p>
-      </div>
+      </div>`}
       <div class="panel-card"><h2>History</h2><div class="rows">${d.items.length ? d.items.map((w) => entryRow(w)).join('') : '<p class="muted">Nothing yet.</p>'}</div></div>`;
     wireCommon(body);
     const af = body.querySelector('#app-pay-form');
@@ -157,8 +159,9 @@ window.HubWallet = (() => {
         });
       });
     }
+    // The "send it yourself" way (Till ID + TID) only shows until in-app JazzCash payment is on.
     const f = body.querySelector('#deposit-form');
-    f.addEventListener('submit', (e) => {
+    if (f) f.addEventListener('submit', (e) => {
       e.preventDefault();
       busy(body.querySelector('#deposit-submit'), body.querySelector('#deposit-error'), async () => {
         const amount = parseInt(f.amount.value, 10);
