@@ -24,7 +24,7 @@ window.HubMoney = (() => {
 
   // ---------- the bell ----------
   const ICONS = { bid: '💬', won: '🏆', lost: '·', driver: '🚚', step: '📍', delivered: '✅', invoice: '🧾', payment: '💰', paid: '✅',
-    rated: '⭐', verified: '✅', rejected: '⚠️', cancelled: '✖', fee: '🏷️' };
+    rated: '⭐', verified: '✅', rejected: '⚠️', cancelled: '✖', fee: '🏷️', wallet: '💳' };
   let bell = null;
   let data = { unseen: 0, items: [] };
   let open = false;
@@ -139,7 +139,7 @@ window.HubMoney = (() => {
       </div>
       ${fees ? `<div class="panel-card fee-card">
         <div class="card-head"><h2>Transport Hub fees · کمیشن</h2><b>${rs(fees.due)} due</b></div>
-        <p class="muted small">${rs(fees.fee_per_trip)} for each truck trip you deliver. Pay it to Transport Hub; an admin marks it paid.</p>
+        <p class="muted small">${rs(fees.fee_per_trip)} for each truck trip you deliver, taken from your Wallet on delivery.</p>
         <div class="rows">${feeRows(fees.items, false)}</div>
       </div>` : ''}`;
   }
