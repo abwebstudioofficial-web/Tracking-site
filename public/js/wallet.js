@@ -10,7 +10,20 @@ window.HubWallet = (() => {
   const when = (t) => new Date(t).toLocaleString('en-PK', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   const localPhone = (p) => (p && p.startsWith('+92') ? '0' + p.slice(3) : p || '');
   const BUCKET = 'wallet-proofs';
+
+  // The "jazzcash" Edge Function: in-app JazzCash payments (approve on the phone with the MPIN).
+  async function jazzcash(body) {
+    const { data: { session } } = await sb.auth.getSession();
+    const res = await fetch(`${window.IBRAYA.supabaseUrl}/functions/v1/jazzcash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: window.IBRAYA.supabaseKey, ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+      body: JSON.stringify(body),
+    });
+    return res.json().catch(() => ({ error: 'Something went wrong' }));
+  }
+  let online = null; // { ready, live } once asked
   const KIND = { deposit: 'JazzCash top-up', fee: 'Transport Hub fee', adjust: 'By Transport Hub' };
+  const kindLabel = (w) => (w.kind === 'deposit' && w.method === 'jazzcash_app' ? 'JazzCash (paid in the app)' : KIND[w.kind]);
   const STATUS = { pending: ['Waiting for check', 'warn'], approved: ['', ''], rejected: ['Not approved', 'bad'] };
 
   function entryRow(w, { admin = false, actions = '' } = {}) {
@@ -23,7 +36,7 @@ window.HubWallet = (() => {
       when(w.created_at),
     ].filter(Boolean).join(' · ');
     return `<div class="row wallet-row">
-      <div class="row-main"><b>${KIND[w.kind]}</b>${label ? ` <span class="pill small ${cls}">${label}</span>` : ''}
+      <div class="row-main"><b>${kindLabel(w)}</b>${label ? ` <span class="pill small ${cls}">${label}</span>` : ''}
         <div class="muted small">${sub}</div></div>
       <div class="row-actions">
         ${w.has_proof ? `<button class="btn btn-ghost btn-small" data-proof="${esc(w.proof_path)}">Screenshot</button>` : ''}
@@ -62,18 +75,35 @@ window.HubWallet = (() => {
   async function renderWallet(body, { rpc, busy }) {
     body.innerHTML = '<div class="panel-card"><p class="muted">Loading…</p></div>';
     let d;
-    try { d = await rpc('my_wallet'); } catch (err) {
+    try {
+      [d, online] = await Promise.all([rpc('my_wallet'), online || jazzcash({ action: 'status' }).catch(() => ({ ready: false }))]);
+    } catch (err) {
       body.innerHTML = `<div class="panel-card"><p class="error">${esc(Ibraya.friendlyError(err))}</p></div>`;
       return;
     }
+    const app = online && online.ready;
     body.innerHTML = `
       <div class="money-cards">
         <div class="panel-card money"><small>Wallet balance · بیلنس</small><b class="${d.balance < 0 ? 'minus' : ''}">${rs(d.balance)}</b></div>
         <div class="panel-card money"><small>Waiting for check</small><b>${rs(d.pending)}</b></div>
         <div class="panel-card money"><small>Fee per truck trip</small><b>${rs(d.fee_per_trip)}</b></div>
       </div>
+      ${app ? `<div class="panel-card narrow">
+        <h2>Pay with JazzCash · جاز کیش سے ادائیگی</h2>
+        <p class="muted small">Enter your JazzCash number. A request pops up on that phone: approve it with your MPIN and the money is in your wallet straight away.${online.live ? '' : ' <b>(Test mode: no real money.)</b>'}</p>
+        <form id="app-pay-form" novalidate>
+          <div class="amount-chips">${[1000, 2000, 5000, 10000].map((n) => `<button type="button" class="chip" data-amount="${n}">${rs(n)}</button>`).join('')}</div>
+          <div class="field-pair">
+            <label class="field"><span>Amount (Rs)</span><input name="amount" type="number" min="100" step="1" inputmode="numeric" placeholder="e.g. 5000" required></label>
+            <label class="field"><span>JazzCash number</span><input name="mobile" type="tel" inputmode="numeric" maxlength="13" placeholder="0300 1234567" required></label>
+          </div>
+          <label class="field"><span>Last 6 digits of the CNIC of that JazzCash account</span><input name="cnic" inputmode="numeric" maxlength="6" placeholder="123456" required></label>
+          <div class="error" id="app-pay-error"></div>
+          <button class="btn btn-jazz" id="app-pay-submit">Pay with JazzCash</button>
+        </form>
+      </div>` : ''}
       <div class="panel-card narrow">
-        <h2>Add money · رقم جمع کریں</h2>
+        <h2>${app ? 'Or send it yourself' : 'Add money · رقم جمع کریں'}</h2>
         <ol class="steps-list">
           <li>Send the money from your JazzCash app to Transport Hub:</li>
         </ol>
@@ -95,6 +125,38 @@ window.HubWallet = (() => {
       </div>
       <div class="panel-card"><h2>History</h2><div class="rows">${d.items.length ? d.items.map((w) => entryRow(w)).join('') : '<p class="muted">Nothing yet.</p>'}</div></div>`;
     wireCommon(body);
+    const af = body.querySelector('#app-pay-form');
+    if (af) {
+      af.querySelectorAll('[data-amount]').forEach((b) => b.addEventListener('click', () => { af.amount.value = b.dataset.amount; }));
+      af.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const err = body.querySelector('#app-pay-error');
+        busy(body.querySelector('#app-pay-submit'), err, async () => {
+          const amount = parseInt(af.amount.value, 10);
+          if (!(amount >= 100)) throw new Error('Enter an amount from Rs 100');
+          if (!Ibraya.normalizePhone(af.mobile.value)) throw new Error('Enter your JazzCash number, e.g. 0300 1234567');
+          if (!/^\d{6}$/.test(af.cnic.value.trim())) throw new Error('Enter the last 6 digits of the CNIC');
+          // While JazzCash waits for the MPIN on the phone (up to about a minute).
+          const wait = document.createElement('div');
+          wait.className = 'modal-backdrop';
+          wait.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h2>Approve on your phone 📱</h2>
+            <p class="modal-msg">JazzCash sent a request for ${rs(amount)} to ${esc(af.mobile.value)}.\nOpen it and approve with your MPIN.\nجاز کیش میں درخواست کھولیں اور MPIN سے منظور کریں۔</p>
+            <div class="spinner" aria-label="Waiting"></div></div>`;
+          document.body.appendChild(wait);
+          let r;
+          try { r = await jazzcash({ action: 'pay', amount, mobile: af.mobile.value, cnic: af.cnic.value.trim() }); } finally { wait.remove(); }
+          if (r.ok) {
+            await Ibraya.dialog({ title: 'Paid ✓ · ادائیگی ہو گئی', message: `${rs(r.amount)} added to your wallet.\nBalance: ${rs(r.balance)}`, cancel: false });
+            return renderWallet(body, { rpc, busy });
+          }
+          if (r.pending) {
+            await Ibraya.dialog({ title: 'Waiting for JazzCash', message: r.error, cancel: false });
+            return renderWallet(body, { rpc, busy });
+          }
+          throw new Error(r.error || 'The payment did not go through');
+        });
+      });
+    }
     const f = body.querySelector('#deposit-form');
     f.addEventListener('submit', (e) => {
       e.preventDefault();
