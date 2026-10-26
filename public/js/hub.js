@@ -280,9 +280,10 @@
     if (!tab) tab = loadTabs.length ? HubLoads.firstTab(c) : 'overview';
     const tabs = [...loadTabs, ...(loadTabs.length && staff ? [['invoices', 'Invoices']] : []),
       ...(c.kind === 'carrier' && staff ? [['fleet', 'Fleet map']] : []),
+      ...(['carrier', 'broker', 'dispatcher'].includes(c.kind) && staff ? [['wallet', 'Wallet']] : []),
       ['overview', 'Details'], ['team', `Team (${state.members.length})`]];
     if (staff) tabs.push(['papers', 'Papers']);
-    if (isAdmin) tabs.push(['admin', `Companies${pending ? ` <span class="count">${pending}</span>` : ''}`], ['commission', 'Commission']);
+    if (isAdmin) tabs.push(['admin', `Companies${pending ? ` <span class="count">${pending}</span>` : ''}`], ['commission', 'Commission'], ['wallets', 'Wallets']);
     if (!tabs.some(([k]) => k === tab)) tab = 'overview';
     main.innerHTML = `
       <section class="panel-card company-head">
@@ -299,6 +300,8 @@
     if (page) return page();
     if (tab === 'invoices') return HubMoney.renderInvoices($('tab-body'), { rpc, kind: c.kind });
     if (tab === 'commission') return HubMoney.renderCommission($('tab-body'), { rpc, busy });
+    if (tab === 'wallet') return HubWallet.renderWallet($('tab-body'), { rpc, busy });
+    if (tab === 'wallets') return HubWallet.renderAdmin($('tab-body'), { rpc, busy });
     const go = (t) => { tab = t; renderDashboard(); };
     if (tab === 'fleet') return HubFleet.render($('tab-body'), { rpc, openLoad: (id) => HubLoads.open(id, { busy, rpc, go }) });
     HubLoads.render(tab, { body: $('tab-body'), busy, rpc, go: (t) => { tab = t; renderDashboard(); } });
