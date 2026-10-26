@@ -32,6 +32,9 @@
   if (!me) return;
   $('logout').addEventListener('click', () => Ibraya.signOut());
   const isAdmin = me.role === 'admin';
+  // The main admin and the developer run Transport Hub itself: without a company of their own they
+  // go straight to the admin pages (other admins and businesses get the "What do you do?" pop-up).
+  const platformTeam = isAdmin && (me.is_owner || me.hidden);
   $('to-fleet').hidden = !isAdmin;
 
   let state = null; // answer of my_company()
@@ -85,6 +88,7 @@
     const c = state.company;
     $('top-company').textContent = c ? c.name : 'Loads · Trucks · Tracking';
     if (!c) {
+      if (platformTeam) return renderPlatformHome();
       if (state.my_invites.length && !registering) return renderInvites();
       return renderOnboarding();
     }
@@ -269,6 +273,24 @@
     if (c.status === 'verified') return `Checked by Transport Hub on ${date(c.verified_at)}.`;
     if (c.status === 'rejected') return `<b>What to fix:</b> ${esc(c.status_note)}<br>Make the changes under Details or Papers. Saving the details sends your company to be checked again.`;
     return 'A Transport Hub admin is checking your company. Upload your papers (CNIC, NTN, truck registration) under Papers to get verified faster.';
+  }
+
+  // Transport Hub's own pages for the main admin / developer (no company of their own).
+  function renderPlatformHome() {
+    const pending = companies ? companies.filter((x) => x.company.status === 'pending').length : 0;
+    const tabs = [['admin', `Companies${pending ? ` <span class="count">${pending}</span>` : ''}`], ['commission', 'Commission'], ['wallets', 'Wallets']];
+    if (!tabs.some(([k]) => k === tab)) tab = 'admin';
+    main.innerHTML = `
+      <section class="panel-card company-head">
+        <div class="company-title"><div><h1>Transport Hub admin</h1>
+          <div class="muted">Check companies, the fee per trip and wallet payments · ${esc(state.me.name)}${me.is_owner ? ' · main admin' : ''}</div></div></div>
+      </section>
+      <nav class="hub-tabs">${tabs.map(([k, label]) => `<button data-tab="${k}" class="${k === tab ? 'active' : ''}">${label}</button>`).join('')}</nav>
+      <section id="tab-body"></section>`;
+    main.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; render(); }));
+    if (tab === 'admin') return renderAdmin();
+    if (tab === 'commission') return HubMoney.renderCommission($('tab-body'), { rpc, busy });
+    return HubWallet.renderAdmin($('tab-body'), { rpc, busy });
   }
 
   function renderDashboard() {
@@ -555,7 +577,7 @@
         await rpc('admin_set_company_status', { p_company: c.id, p_status: b.dataset.status, p_note: note });
         companies = await rpc('admin_list_companies');
         if (c.id === state.company?.id) state = await rpc('my_company');
-        renderDashboard();
+        render();
       });
     }));
     try {
