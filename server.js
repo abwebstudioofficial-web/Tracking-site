@@ -17,7 +17,7 @@ app.use((req, res, next) => {
 });
 
 const page = (file) => (req, res) => res.sendFile(path.join(__dirname, 'public', file));
-app.get('/', (req, res) => res.redirect('/login'));
+app.get('/', page('home.html')); // public services page; the app opens /login directly
 app.get('/login', page('login.html'));
 app.get('/driver', page('driver.html'));
 app.get('/admin', page('admin.html'));
