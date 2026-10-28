@@ -24,6 +24,7 @@ app.get('/admin', page('admin.html'));
 app.get('/hub', page('hub.html'));
 app.get('/invoice', page('invoice.html'));
 app.get('/download', page('download.html'));
+app.get('/policies', page('policies.html'));
 
 // The Android app is built by GitHub (.github/workflows/android.yml) and published as the latest
 // release. Serve it from this site with the Android file type, so phones offer to install it.
