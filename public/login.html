@@ -20,6 +20,12 @@
         <div>Transport Hub<small>Loads · Trucks · Tracking</small></div>
       </div>
 
+      <!-- Who is signing in: drivers (phone only) or businesses (password) -->
+      <div class="tabs who-tabs" id="who-tabs">
+        <button type="button" data-who="view-phone" class="active">Individual (driver) · ڈرائیور</button>
+        <button type="button" data-who="view-main">Business · کاروبار</button>
+      </div>
+
       <!-- Drivers: phone number only -->
       <section id="view-phone">
         <h2 class="view-title">Sign in · سائن ان کریں</h2>
@@ -37,7 +43,6 @@
           <button class="btn" id="phone-submit">Sign in · سائن ان کریں</button>
         </form>
         <p class="hint" style="margin-bottom:4px">Drivers: phone number only. · ڈرائیور: صرف فون نمبر۔</p>
-        <p class="link-row"><button type="button" class="link" id="to-admin">Shipper, carrier, broker or dispatcher? Business sign-in</button></p>
       </section>
 
       <!-- Business accounts and admins: sign in / create account with a password -->
@@ -72,8 +77,7 @@
             Continue with Google
           </button>
         </div>
-        <p class="hint" id="hint">For shippers, carriers, brokers, dispatchers and admins. Drivers don't need a password.</p>
-        <p class="link-row"><button type="button" class="link" id="to-phone">Driver? Sign in with phone number</button></p>
+        <p class="hint" id="hint">Drivers don't need a password.</p>
       </section>
 
       <!-- After email sign-up -->
