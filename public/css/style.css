@@ -737,3 +737,6 @@ body.sheet-open { overflow: hidden; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .policy-links { text-align: center; font-size: 13px; color: var(--muted); margin: 14px 0 0; }
 .policy-links a { color: var(--muted); }
+/* sign-in: Individual (driver) / Business choice */
+.who-tabs button { font-size: 15px; padding: 12px 8px; }
+.who-tabs button.active { background: var(--accent); color: var(--accent-ink); }

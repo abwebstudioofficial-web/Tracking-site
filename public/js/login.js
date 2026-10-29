@@ -8,6 +8,9 @@
 
   function show(view) {
     views.forEach((v) => ($(v).hidden = v !== view));
+    // The Individual / Business choice shows on the two sign-in forms only.
+    $('who-tabs').hidden = view !== 'view-phone' && view !== 'view-main';
+    $('who-tabs').querySelectorAll('[data-who]').forEach((b) => b.classList.toggle('active', b.dataset.who === view));
   }
 
   async function withButton(btn, errorEl, fn) {
@@ -38,10 +41,10 @@
   }
 
   // ---------- sign in / create account ----------
-  document.querySelectorAll('.tabs button').forEach((b) => {
+  document.querySelectorAll('#view-main .tabs button').forEach((b) => {
     b.addEventListener('click', () => {
       mode = b.dataset.mode;
-      document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('active', x === b));
+      document.querySelectorAll('#view-main .tabs button').forEach((x) => x.classList.toggle('active', x === b));
       $('name-field').hidden = mode !== 'register';
       $('forgot-row').hidden = mode === 'register';
       $('submit').textContent = mode === 'register' ? 'Create business account' : 'Sign in';
@@ -150,8 +153,11 @@
     });
   });
 
-  $('to-admin').addEventListener('click', () => { $('error').textContent = ''; show('view-main'); });
-  $('to-phone').addEventListener('click', () => { $('phone-error').textContent = ''; show('view-phone'); });
+  $('who-tabs').querySelectorAll('[data-who]').forEach((b) => b.addEventListener('click', () => {
+    $('error').textContent = '';
+    $('phone-error').textContent = '';
+    show(b.dataset.who);
+  }));
 
   // ---------- Google ----------
   $('google-btn').addEventListener('click', () => {
@@ -224,7 +230,7 @@
   $('complete-signout').addEventListener('click', () => Ibraya.signOut());
 
   document.querySelectorAll('.back').forEach((b) => b.addEventListener('click', () => {
-    document.querySelector('.tabs [data-mode=login]').click();
+    document.querySelector('#view-main .tabs [data-mode=login]').click();
     show('view-main');
   }));
   show('view-phone');
