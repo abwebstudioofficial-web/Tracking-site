@@ -48,7 +48,7 @@
       form.password.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
       $('hint').textContent = mode === 'register'
         ? 'Next you tell us about your company. Drivers don\'t need an account here: their company adds them.'
-        : 'For shippers, carriers, brokers, dispatchers and admins. Drivers don\'t need a password.';
+        : 'Drivers don\'t need a password.';
       $('error').textContent = '';
     });
   });
@@ -230,7 +230,7 @@
   show('view-phone');
 
   if (Ibraya.inApp) {
-    $('hint').textContent = 'For shippers, carriers, brokers, dispatchers and admins. Drivers don\'t need a password. (Signed up with Google? Tap "Forgot password?" to set a password for your Gmail.)';
+    $('hint').textContent = 'Drivers don\'t need a password. (Signed up with Google? Tap "Forgot password?" to set a password for your Gmail.)';
   }
 
   // ---------- on load ----------
